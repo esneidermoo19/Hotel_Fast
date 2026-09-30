@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import CheckConstraint, DateTime, Numeric, Text, func
 from sqlalchemy import Enum as SqlEnum
@@ -9,14 +9,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
 
-class TipoHabitacion(str, Enum):
+class TipoHabitacion(StrEnum):
     SIMPLE = "SIMPLE"
     DOBLE = "DOBLE"
     SUITE = "SUITE"
     PRESIDENCIAL = "PRESIDENCIAL"
 
 
-class EstadoHabitacion(str, Enum):
+class EstadoHabitacion(StrEnum):
     DISPONIBLE = "DISPONIBLE"
     OCUPADA = "OCUPADA"
     MANTENIMIENTO = "MANTENIMIENTO"
