@@ -1,3 +1,3 @@
-from fastapi import APIRouter
+from app.routers.habitaciones import router
 
-router = APIRouter(prefix="/habitaciones", tags=["habitaciones"])
+__all__ = ["router"]
