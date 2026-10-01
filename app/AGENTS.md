@@ -1,3 +1,4 @@
+@'
 # Reglas del proyecto Hotel_Fast (backend)
 - Stack: FastAPI, SQLAlchemy 2.0 síncrono, Alembic, Pydantic v2, PyJWT, pwdlib/Argon2, pytest, ruff. Python 3.12.
 - Capas: routers (solo HTTP) → services (reglas de negocio y consultas) → models. Los routers no contienen lógica.
@@ -13,3 +14,4 @@
 - Tests (SQLite en memoria) con las fábricas de tests/factories.py. `python -m pytest -q` y `ruff check .` deben pasar. Un test por regla de negocio y por código de error.
 - Nunca Docker local ni PostgreSQL local. Nunca leer, imprimir ni modificar `.env`. Sin claves en el repo.
 - Un tema por sesión: muestra un plan de 3 a 5 líneas y espera mi ok. No hagas commit ni push. Toca solo los archivos de la tarea.
+'@ | Set-Content -Path AGENTS.md -Encoding utf8
