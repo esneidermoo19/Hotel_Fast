@@ -1,25 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
-from enum import StrEnum
 
 from sqlalchemy import CheckConstraint, DateTime, Numeric, Text, func
 from sqlalchemy import Enum as SqlEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-
-
-class TipoHabitacion(StrEnum):
-    SIMPLE = "SIMPLE"
-    DOBLE = "DOBLE"
-    SUITE = "SUITE"
-    PRESIDENCIAL = "PRESIDENCIAL"
-
-
-class EstadoHabitacion(StrEnum):
-    DISPONIBLE = "DISPONIBLE"
-    OCUPADA = "OCUPADA"
-    MANTENIMIENTO = "MANTENIMIENTO"
+from app.models.enums import EstadoHabitacion, EstadoLimpieza, TipoHabitacion
 
 
 class Habitacion(Base):
@@ -41,7 +28,7 @@ class Habitacion(Base):
         nullable=False,
     )
     capacidad: Mapped[int] = mapped_column(nullable=False)
-    precio_por_noche: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    precio_por_noche: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     estado: Mapped[EstadoHabitacion] = mapped_column(
         SqlEnum(
             EstadoHabitacion,
@@ -49,6 +36,15 @@ class Habitacion(Base):
             values_callable=lambda enum_values: [item.value for item in enum_values],
         ),
         default=EstadoHabitacion.DISPONIBLE,
+        nullable=False,
+    )
+    limpieza: Mapped[EstadoLimpieza] = mapped_column(
+        SqlEnum(
+            EstadoLimpieza,
+            name="estado_limpieza",
+            values_callable=lambda enum_values: [item.value for item in enum_values],
+        ),
+        default=EstadoLimpieza.LIMPIA,
         nullable=False,
     )
     descripcion: Mapped[str | None] = mapped_column(Text, nullable=True)
