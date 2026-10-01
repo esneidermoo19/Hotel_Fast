@@ -24,7 +24,10 @@ class Settings(BaseSettings):
 
     @field_validator("database_url", mode="before")
     @classmethod
-    def encode_database_password(cls, value: str) -> str:
+    def encode_database_password(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+
         scheme, separator, remainder = value.partition("://")
         if not separator:
             return value
