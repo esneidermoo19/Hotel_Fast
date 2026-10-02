@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
+from app.core.limiter import limiter
 from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models import RolUsuario, Usuario
@@ -36,7 +37,10 @@ def isolate_database() -> Generator[None, None, None]:
     Base.metadata.drop_all(bind=test_engine)
     Base.metadata.create_all(bind=test_engine)
     app.dependency_overrides[get_db] = override_get_db
+    # El limite de intentos se prueba explicitamente, no en cada test.
+    limiter.enabled = False
     yield
+    limiter.enabled = True
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=test_engine)
 
@@ -45,6 +49,15 @@ def isolate_database() -> Generator[None, None, None]:
 def client() -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def db_session() -> Iterator[Session]:
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 
 def _create_user(role: RolUsuario) -> Usuario:

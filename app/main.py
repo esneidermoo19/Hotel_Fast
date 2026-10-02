@@ -9,7 +9,15 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.routers import auth, habitaciones
+from app.core.exception_handlers import registrar_manejadores
+from app.core.limiter import registrar_limiter
+from app.routers import (
+    auditoria,
+    auth,
+    catalogos,
+    habitaciones,
+    usuarios,
+)
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
@@ -19,8 +27,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+registrar_limiter(app)
+registrar_manejadores(app)
 app.include_router(auth.router)
 app.include_router(habitaciones.router)
+app.include_router(usuarios.router)
+app.include_router(auditoria.router)
+app.include_router(catalogos.router)
 
 
 @app.get("/api/health", response_model=None, tags=["health"])
@@ -30,5 +43,8 @@ def health_check(
     try:
         db.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        return JSONResponse(status_code=503, content={"status": "unavailable"})
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Base de datos no disponible", "code": "NO_DISPONIBLE"},
+        )
     return {"status": "ok"}

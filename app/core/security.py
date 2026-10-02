@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -15,6 +16,11 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return password_hasher.verify(password, password_hash)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash determinista del refresh token; el valor en claro no se persiste."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_access_token(user_id: int, role: str) -> str:

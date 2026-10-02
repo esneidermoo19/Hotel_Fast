@@ -61,6 +61,45 @@ $login = curl.exe -s -X POST http://localhost:8000/api/auth/login -H "Content-Ty
 $token = $login.token
 ```
 
+El login devuelve además un `refreshToken`. El access token caduca a los 30 minutos; para renovarlo se rota el refresh token:
+
+```powershell
+$refresh = curl.exe -s -X POST http://localhost:8000/api/auth/refresh -H "Content-Type: application/json" -d "{\"refreshToken\":\"$($login.refreshToken)\"}" | ConvertFrom-Json
+$token = $refresh.token
+```
+
+Cada rotación emite un refresh token nuevo e invalida el anterior. Presentar un token ya rotado se trata como robo de credenciales y revoca la familia completa de la sesión, por lo que el cliente debe guardar siempre el último `refreshToken` recibido. `POST /api/auth/logout` revoca el token recibido.
+
+## Usuarios, auditoría y catálogos
+
+`/api/usuarios` es exclusivo de `ADMIN` (crear, editar, desactivar, reactivar, eliminar). Un usuario desactivado no puede iniciar sesión y sus sesiones abiertas se revocan de inmediato. No se puede desactivar ni degradar al último administrador activo, ni modificar la propia cuenta desde esa pantalla.
+
+`POST /api/auth/cambiar-password` permite a cualquier usuario autenticado cambiar su propia contraseña; al hacerlo se revocan el resto de sus sesiones. Exige contraseña actual y una nueva que cumpla la regla de fortaleza (mínimo 8 caracteres, al menos una letra y un número).
+
+`GET /api/catalogos` devuelve los valores admitidos por el backend —roles, tipos y estados de habitación, estados de reserva, métodos de pago, tipos de consumo y tipos de documento— para que el frontend no los duplique. Requiere autenticación, no rol `ADMIN`.
+
+`GET /api/auditoria` (solo `ADMIN`) lista la bitácora en orden descendente, filtrable por `entidad`, `entidad_id` y `accion`. Las contraseñas y los tokens nunca se registran: los campos sensibles se guardan como `[REDACTADO]`.
+
+## Errores
+
+Todas las respuestas de error usan el mismo sobre, con un `code` estable para el frontend:
+
+```json
+{ "detail": "Credenciales incorrectas", "code": "NO_AUTORIZADO" }
+```
+
+Los errores de validación (422) añaden el detalle por campo, con los nombres en camelCase:
+
+```json
+{ "detail": "Datos invalidos: ...", "code": "VALIDACION", "errors": [{ "campo": "precioPorNoche", "mensaje": "...", "tipo": "greater_than" }] }
+```
+
+Códigos en uso: `VALIDACION`, `NO_AUTORIZADO`, `TOKEN_INVALIDO`, `REFRESH_TOKEN_INVALIDO`, `SIN_PERMISOS`, `NO_ENCONTRADO`, `CONFLICTO`, `DEMASIADAS_SOLICITUDES`, `NO_DISPONIBLE`, `BASE_DATOS`.
+
+## Límite de intentos
+
+`POST /api/auth/login` y `POST /api/auth/refresh` aceptan como máximo `LOGIN_RATE_LIMIT` intentos por minuto y IP (por defecto `5/minute`). Al superarlo responden 429 con `code: DEMASIADAS_SOLICITUDES`.
+
 Crea una habitación y cambia su estado usando el token:
 
 ```powershell

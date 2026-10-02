@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_roles
+from app.core.errors import ConflictoError, NoEncontradoError
 from app.models import RolUsuario, Usuario
 from app.schemas.habitacion import (
     HabitacionCreate,
@@ -36,7 +37,7 @@ def obtener_habitacion(
     try:
         return habitacion_service.obtener_habitacion(db, habitacion_id)
     except habitacion_service.HabitacionNoEncontradaError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise NoEncontradoError(str(error)) from error
 
 
 @router.post(
@@ -52,7 +53,7 @@ def crear_habitacion(
     try:
         return habitacion_service.crear_habitacion(db, datos)
     except habitacion_service.NumeroHabitacionDuplicadoError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        raise ConflictoError(str(error)) from error
 
 
 @router.put("/{habitacion_id}", response_model=HabitacionRead)
@@ -65,9 +66,9 @@ def actualizar_habitacion(
     try:
         return habitacion_service.actualizar_habitacion(db, habitacion_id, datos)
     except habitacion_service.HabitacionNoEncontradaError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise NoEncontradoError(str(error)) from error
     except habitacion_service.NumeroHabitacionDuplicadoError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        raise ConflictoError(str(error)) from error
 
 
 @router.patch("/{habitacion_id}/estado", response_model=HabitacionRead)
@@ -84,7 +85,7 @@ def actualizar_estado_habitacion(
             datos.estado,
         )
     except habitacion_service.HabitacionNoEncontradaError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise NoEncontradoError(str(error)) from error
 
 
 @router.delete("/{habitacion_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -96,7 +97,7 @@ def eliminar_habitacion(
     try:
         habitacion_service.eliminar_habitacion(db, habitacion_id)
     except habitacion_service.HabitacionNoEncontradaError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise NoEncontradoError(str(error)) from error
     except habitacion_service.HabitacionConReservasFuturasError as error:
-        raise HTTPException(status_code=409, detail=str(error)) from error
+        raise ConflictoError(str(error)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)

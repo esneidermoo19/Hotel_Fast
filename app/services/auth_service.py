@@ -23,4 +23,6 @@ def autenticar_usuario(
     )
     if usuario is None or not verify_password(password, usuario.password_hash):
         return None
+    if not usuario.activo:
+        return None
     return usuario
