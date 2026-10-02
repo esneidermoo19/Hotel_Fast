@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.routers import auth, habitaciones
+from app.routers import auth, habitaciones, huespedes
 
 app = FastAPI(title=settings.app_name)
 app.add_middleware(
@@ -21,6 +21,7 @@ app.add_middleware(
 )
 app.include_router(auth.router)
 app.include_router(habitaciones.router)
+app.include_router(huespedes.router)
 
 
 @app.get("/api/health", response_model=None, tags=["health"])
