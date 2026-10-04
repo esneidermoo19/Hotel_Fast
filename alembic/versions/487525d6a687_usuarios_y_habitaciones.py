@@ -55,3 +55,9 @@ def downgrade() -> None:
     op.drop_table('usuarios')
     op.drop_table('habitaciones')
     # ### fin de los comandos Alembic ###
+
+    # PostgreSQL: eliminar tipos ENUM creados en upgrade
+    # Estas migraciones corren solo en PostgreSQL
+    op.execute("DROP TYPE IF EXISTS tipo_habitacion")
+    op.execute("DROP TYPE IF EXISTS estado_habitacion")
+    op.execute("DROP TYPE IF EXISTS rol_usuario")

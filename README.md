@@ -5,7 +5,6 @@ Backend REST para el PMS del hotel, construido con FastAPI, SQLAlchemy 2 y Postg
 ## Requisitos
 
 - Python 3.12
-- Docker Compose, o una instancia PostgreSQL 16 accesible
 
 ## Configuración local
 
@@ -17,27 +16,19 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 ```
 
-Copia `.env.example` a `.env` solo si todavía no tienes un `.env`; si ya existe, agrega las variables que falten sin reemplazar tus valores. Para Docker, configura la misma clave en `POSTGRES_PASSWORD` y `DATABASE_URL`, y usa el puerto publicado indicado por `POSTGRES_PORT`. Para una instalación PostgreSQL local, configura `DATABASE_URL` con su usuario, clave y puerto (normalmente `5432`). No publiques `.env` ni guardes credenciales reales en el repositorio.
+Copia `.env.example` a `.env`; si ya existe, agrega las variables que falten sin reemplazar tus valores. `DATABASE_URL` debe apuntar a `sqlite:///./hotel_pms.db` para desarrollo local.
 
-## PostgreSQL y migraciones
-
-Arranca PostgreSQL en Docker con `docker compose up -d`. El puerto publicado por defecto es `5433` para permitir que conviva con una instalación local que use `5432`; `POSTGRES_PORT` permite cambiarlo. `DATABASE_URL` debe apuntar a la instancia elegida.
-
-Aplica las migraciones:
+Inicializa la base de datos de desarrollo:
 
 ```powershell
-python -m alembic upgrade head
+python -m app.dev_db
 ```
 
-## Usuario inicial
-
-Define las variables `SEED_ADMIN_EMAIL`, `SEED_ADMIN_USERNAME`, `SEED_ADMIN_NOMBRE`, `SEED_ADMIN_PASSWORD` y sus equivalentes `SEED_RECEPCION_*` en `.env`. El script crea ambos usuarios sin incluir contraseñas fijas en el código.
+Si las variables de seed están definidas en `.env`, carga los usuarios iniciales:
 
 ```powershell
 python -m app.seed
 ```
-
-## API y validaciones
 
 Inicia la API:
 
@@ -51,6 +42,10 @@ Ejecuta las pruebas y el linter:
 python -m pytest
 ruff check .
 ```
+
+## Migraciones y PostgreSQL
+
+Las migraciones y el esquema de producción se verifican únicamente en **GitHub Actions** contra una instancia real de PostgreSQL. En local se usa SQLite con `app.dev_db` para crear las tablas de desarrollo rápido; el esquema de producción real se genera con Alembic.
 
 ## Ejemplos HTTP
 
@@ -105,4 +100,3 @@ Crea una habitación y cambia su estado usando el token:
 ```powershell
 $habitacion = curl.exe -s -X POST http://localhost:8000/api/habitaciones -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"numero":101,"tipo":"DOBLE","capacidad":2,"precioPorNoche":120.50}' | ConvertFrom-Json
 curl.exe -i -X PATCH "http://localhost:8000/api/habitaciones/$($habitacion.id)/estado" -H "Authorization: Bearer $token" -H "Content-Type: application/json" -d '{"estado":"OCUPADA"}'
-```
