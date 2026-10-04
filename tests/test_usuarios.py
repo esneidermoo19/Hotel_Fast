@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -244,8 +244,9 @@ def test_admin_no_puede_desactivarse_a_si_mismo(
         headers=admin_headers,
     )
 
+    mi_id = client.get("/api/auth/me", headers=admin_headers).json()["id"]
     response = client.post(
-        f"/api/usuarios/{client.get('/api/auth/me', headers=admin_headers).json()['id']}/desactivar",
+        f"/api/usuarios/{mi_id}/desactivar",
         headers=admin_headers,
     )
 
@@ -443,7 +444,7 @@ def test_auditoria_registra_creacion_de_usuario(
     assert registros[0].usuario_id == admin_user.id
     assert registros[0].entidad == "usuarios"
     assert registros[0].entidad_id == creado["id"]
-    assert "nuevo" in registros[0].detalle
+    assert registros[0].detalle["username"] == "nuevo"
 
 
 def test_auditoria_redacta_password(
@@ -462,8 +463,11 @@ def test_auditoria_redacta_password(
         select(Auditoria).where(Auditoria.accion == "PRUEBA_SECRETOS")
     ).all()
 
-    assert "[REDACTADO]" in registros[0].detalle
-    assert "clave-en-plano" not in registros[0].detalle
+    detalle = registros[0].detalle
+    assert detalle["password"] == "[REDACTADO]"
+    assert detalle["refreshToken"] == "[REDACTADO]"
+    assert "clave-en-plano" not in str(detalle)
+    assert "token-secreto" not in str(detalle)
 
 
 def auditoria_service_crear_con_secreto(db_session: Session) -> None:
@@ -488,7 +492,11 @@ def test_auditoria_se_consulta_en_descendente_y_con_filtros(
     admin_headers: dict[str, str],
 ) -> None:
     client.post("/api/usuarios", json=payload_usuario(), headers=admin_headers)
-    client.post("/api/usuarios", json=payload_usuario(username="otro", email="otro@e.com"), headers=admin_headers)
+    client.post(
+        "/api/usuarios",
+        json=payload_usuario(username="otro", email="otro@e.com"),
+        headers=admin_headers,
+    )
 
     todos = client.get("/api/auditoria", headers=admin_headers)
     filtrado = client.get(
@@ -520,7 +528,7 @@ def test_auditoria_requiere_admin(
         "estados_habitacion",
         "estados_reserva",
         "metodos_pago",
-        "tipos_consumo",
+        "tipos_pago",
         "tipos_documento",
     ],
 )
@@ -574,3 +582,4 @@ def test_schema_usuario_crear_rechaza_username_con_espacios() -> None:
             nombre="X",
             password="clave-fuerte-1",
         )
+

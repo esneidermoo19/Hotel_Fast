@@ -84,7 +84,10 @@ class ConflictoError(AppError):
     codigo = "CONFLICTO"
     status_code = status.HTTP_409_CONFLICT
 
-    def __init__(self, detail: str = "La operacion entra en conflicto con el estado actual") -> None:
+    def __init__(
+        self,
+        detail: str = "La operacion entra en conflicto con el estado actual",
+    ) -> None:
         super().__init__(detail)
 
 

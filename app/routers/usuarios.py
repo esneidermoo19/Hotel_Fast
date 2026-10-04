@@ -1,4 +1,4 @@
-from typing import Annotated
+﻿from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
@@ -52,7 +52,7 @@ def crear_usuario(
         accion="CREAR_USUARIO",
         entidad="usuarios",
         entidad_id=nuevo.id,
-        direccion_ip=request.client.host if request.client else None,
+        ip=request.client.host if request.client else None,
         detalle={"username": nuevo.username, "role": nuevo.role.value},
     )
     return nuevo
@@ -88,7 +88,7 @@ def actualizar_usuario(
         accion="ACTUALIZAR_USUARIO",
         entidad="usuarios",
         entidad_id=actualizado.id,
-        direccion_ip=request.client.host if request.client else None,
+        ip=request.client.host if request.client else None,
         detalle=datos.model_dump(exclude_unset=True, exclude_none=True),
     )
     return actualizado
@@ -120,7 +120,7 @@ def desactivar_usuario(
         accion="DESACTIVAR_USUARIO",
         entidad="usuarios",
         entidad_id=desactivado.id,
-        direccion_ip=request.client.host if request.client else None,
+        ip=request.client.host if request.client else None,
     )
     return desactivado
 
@@ -150,7 +150,7 @@ def reactivar_usuario(
         accion="REACTIVAR_USUARIO",
         entidad="usuarios",
         entidad_id=reactivado.id,
-        direccion_ip=request.client.host if request.client else None,
+        ip=request.client.host if request.client else None,
     )
     return reactivado
 
@@ -172,3 +172,4 @@ def eliminar_usuario(
     db.delete(objetivo)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+

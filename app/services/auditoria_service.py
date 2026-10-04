@@ -1,11 +1,10 @@
 """Registro de auditoría.
 
-La auditoría nunca debe romper la operación principal: si falla el insert,
-se revierte junto con la acción y se avisa por logging, pero el error
-original manda.
+`detalle` se guarda como JSON (columna `JSON` de PostgreSQL) con los campos
+sensibles reemplazados por `[REDACTADO]`, para no filtrar contraseñas ni
+tokens en la bitácora.
 """
 
-import json
 import logging
 from typing import Any
 
@@ -43,26 +42,18 @@ def registrar_auditoria(
     accion: str,
     entidad: str,
     entidad_id: int | None = None,
-    direccion_ip: str | None = None,
+    ip: str | None = None,
     detalle: dict[str, Any] | None = None,
     commit: bool = True,
 ) -> Auditoria:
-    """Registra una acción sensible y devuelve la fila creada.
-
-    `detalle` se guarda como JSON con los campos sensibles reemplazados por
-    `[REDACTADO]`, para no filtrar contraseñas ni tokens en la bitácora.
-    """
+    """Registra una acción sensible y devuelve la fila creada."""
     registro = Auditoria(
         usuario_id=usuario_id,
         accion=accion,
         entidad=entidad,
         entidad_id=entidad_id,
-        direccion_ip=direccion_ip,
-        detalle=(
-            json.dumps(_redactar(detalle), ensure_ascii=False, default=str)
-            if detalle
-            else None
-        ),
+        ip=ip,
+        detalle=_redactar(detalle) if detalle else None,
     )
     db.add(registro)
     if commit:

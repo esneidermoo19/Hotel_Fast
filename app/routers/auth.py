@@ -1,4 +1,4 @@
-from typing import Annotated
+﻿from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.orm import Session
@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.errors import NoAutorizadoError
-from app.core.limiter import limiter
+from app.core.limiter import limite_login, limiter
 from app.core.security import create_access_token
 from app.models import Usuario
 from app.schemas.auth import (
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-@limiter.limit(settings.login_rate_limit)
+@limiter.limit(limite_login())
 def login(
     request: Request,
     datos: LoginRequest,
@@ -54,7 +54,7 @@ def login(
 
 
 @router.post("/refresh", response_model=TokenPair)
-@limiter.limit(settings.login_rate_limit)
+@limiter.limit(limite_login())
 def refrescar_token(
     request: Request,
     datos: RefreshRequest,
@@ -100,7 +100,7 @@ def cambiar_password(
         accion="CAMBIAR_PASSWORD",
         entidad="usuarios",
         entidad_id=usuario.id,
-        direccion_ip=request.client.host if request.client else None,
+        ip=request.client.host if request.client else None,
     )
     return {"mensaje": "Contrasena actualizada"}
 
@@ -110,3 +110,4 @@ def obtener_sesion(
     usuario: Annotated[Usuario, Depends(get_current_user)],
 ) -> Usuario:
     return usuario
+

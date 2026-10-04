@@ -23,8 +23,8 @@ class AuditoriaRead(CamelCaseSchema):
     accion: str
     entidad: str
     entidad_id: int | None
-    direccion_ip: str | None
-    detalle: str | None
+    ip: str | None
+    detalle: dict[str, object] | None
     created_at: datetime
 
 

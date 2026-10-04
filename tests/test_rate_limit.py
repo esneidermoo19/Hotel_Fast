@@ -76,4 +76,5 @@ def test_refresh_tambien_es_limitado(
 
 
 def test_limite_configurado_por_defecto() -> None:
-    assert settings.login_rate_limit == "5/minute"
+    assert settings.login_rate_limit_per_minute == 5
+    assert settings.rate_limit_enabled is True

@@ -1,3 +1,4 @@
+import os
 from collections.abc import Generator, Iterator
 
 import pytest
@@ -6,11 +7,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.core.database import Base, get_db
-from app.core.limiter import limiter
-from app.core.security import create_access_token, hash_password
-from app.main import app
-from app.models import RolUsuario, Usuario
+# Settings exige ENVIRONMENT explicito (el CI lo define, pero las pruebas no
+# deben depender del .env de la maquina). Se fija antes de importar la app.
+os.environ.setdefault("ENVIRONMENT", "test")
+
+from app.core.database import Base, get_db  # noqa: E402
+from app.core.limiter import limiter  # noqa: E402
+from app.core.security import create_access_token, hash_password  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import RolUsuario, Usuario  # noqa: E402
 
 test_engine = create_engine(
     "sqlite://",

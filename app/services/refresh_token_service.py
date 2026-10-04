@@ -1,4 +1,4 @@
-"""Emision, rotacion y revocacion de refresh tokens.
+﻿"""Emision, rotacion y revocacion de refresh tokens.
 
 El token en claro se genera con `secrets` y solo viaja en la respuesta HTTP;
 en la base de datos queda unicamente su hash SHA-256, de modo que una lectura
@@ -7,7 +7,7 @@ no autorizada de la tabla no permite suplantar a un usuario.
 
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -23,19 +23,19 @@ TOKEN_ENTROPY_BYTES = 32
 
 
 def _ahora() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _a_utc(valor: datetime) -> datetime:
     """SQLite no conserva el tz; asumimos UTC al recuperar la columna."""
-    return valor.replace(tzinfo=timezone.utc) if valor.tzinfo is None else valor
+    return valor.replace(tzinfo=UTC) if valor.tzinfo is None else valor
 
 
 def emitir_refresh_token(
     db: Session,
     usuario: Usuario,
     *,
-    familia: str | None = None,
+    familia_id: str | None = None,
 ) -> str:
     """Crea un refresh token y devuelve su valor en claro."""
     token = secrets.token_urlsafe(TOKEN_ENTROPY_BYTES)
@@ -43,7 +43,7 @@ def emitir_refresh_token(
         RefreshToken(
             usuario_id=usuario.id,
             token_hash=hash_refresh_token(token),
-            familia=familia or str(uuid.uuid4()),
+            familia_id=familia_id or str(uuid.uuid4()),
             expira_en=_ahora() + timedelta(days=settings.refresh_token_expire_days),
         )
     )
@@ -62,7 +62,7 @@ def rotar_refresh_token(db: Session, token: str) -> tuple[Usuario, str]:
 
     momento = _ahora()
     if registro.revocado_en is not None:
-        revocar_familia(db, registro.familia)
+        revocar_familia(db, registro.familia_id)
         db.commit()
         raise RefreshTokenInvalidoError(
             "Refresh token ya utilizado; se cierro la sesion"
@@ -75,7 +75,7 @@ def rotar_refresh_token(db: Session, token: str) -> tuple[Usuario, str]:
     if usuario is None:
         raise RefreshTokenInvalidoError()
 
-    nuevo_token = emitir_refresh_token(db, usuario, familia=registro.familia)
+    nuevo_token = emitir_refresh_token(db, usuario, familia_id=registro.familia_id)
     registro.revocado_en = momento
     db.commit()
     return usuario, nuevo_token
@@ -91,12 +91,12 @@ def revocar_token(db: Session, token: str) -> None:
     db.commit()
 
 
-def revocar_familia(db: Session, familia: str) -> None:
+def revocar_familia(db: Session, familia_id: str) -> None:
     """Revoca todos los tokens vivos de una familia."""
     db.execute(
         update(RefreshToken)
         .where(
-            RefreshToken.familia == familia,
+            RefreshToken.familia_id == familia_id,
             RefreshToken.revocado_en.is_(None),
         )
         .values(revocado_en=_ahora())
@@ -134,3 +134,5 @@ def _buscar(db: Session, token: str) -> RefreshToken | None:
     return db.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == hash_refresh_token(token))
     )
+
+
