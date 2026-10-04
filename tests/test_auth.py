@@ -50,7 +50,10 @@ def test_login_incorrecto_devuelve_401_y_bearer(
     )
 
     assert response.status_code == 401
-    assert response.json() == {"detail": "Credenciales incorrectas"}
+    assert response.json() == {
+        "detail": "Credenciales incorrectas",
+        "code": "NO_AUTORIZADO",
+    }
     assert response.headers["www-authenticate"] == "Bearer"
 
 
@@ -74,13 +77,13 @@ def test_me_devuelve_usuario_del_token(
     response = client.get("/api/auth/me", headers=admin_headers)
 
     assert response.status_code == 200
-    assert response.json() == {
-        "id": admin_user.id,
-        "username": "admin",
-        "email": "admin@example.com",
-        "nombre": "Administrador",
-        "role": "ADMIN",
-    }
+    cuerpo = response.json()
+    assert cuerpo["id"] == admin_user.id
+    assert cuerpo["username"] == "admin"
+    assert cuerpo["email"] == "admin@example.com"
+    assert cuerpo["nombre"] == "Administrador"
+    assert cuerpo["role"] == "ADMIN"
+    assert cuerpo["activo"] is True
 
 
 def test_login_token_contiene_sub_role_y_exp(
@@ -106,11 +109,14 @@ def test_login_token_contiene_sub_role_y_exp(
     assert "exp" in payload
 
 
-def test_logout_requiere_token_y_devuelve_204(
+def test_logout_requiere_refresh_token_y_devuelve_204(
     client: TestClient,
-    admin_headers: dict[str, str],
+    admin_user: Usuario,
 ) -> None:
-    response = client.post("/api/auth/logout", headers=admin_headers)
+    response = client.post(
+        "/api/auth/logout",
+        json={"refreshToken": "token-cualquiera"},
+    )
 
     assert response.status_code == 204
     assert response.content == b""

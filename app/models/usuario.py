@@ -29,7 +29,9 @@ class Usuario(Base):
         ),
         nullable=False,
     )
-    activo: Mapped[bool] = mapped_column(Boolean, server_default="true", nullable=False)
+    activo: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

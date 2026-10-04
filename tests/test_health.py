@@ -27,4 +27,7 @@ def test_health_devuelve_503_si_falla_la_base_de_datos(
     response = client.get("/api/health")
 
     assert response.status_code == 503
-    assert response.json() == {"status": "unavailable"}
+    assert response.json() == {
+        "detail": "Base de datos no disponible",
+        "code": "NO_DISPONIBLE",
+    }
