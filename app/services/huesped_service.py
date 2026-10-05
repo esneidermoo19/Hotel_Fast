@@ -2,16 +2,18 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.errors import ConflictoError, NoEncontradoError
+from app.core.pagination import paginar_consulta
 from app.models import Huesped, Reserva, TipoDocumento
 from app.schemas.huesped import HuespedCreate, HuespedUpdate
 
 
-class HuespedNoEncontradoError(LookupError):
+class HuespedNoEncontradoError(NoEncontradoError):
     def __init__(self) -> None:
         super().__init__("No se encontro el huesped")
 
 
-class HuespedDuplicadoError(ValueError):
+class HuespedDuplicadoError(ConflictoError):
     def __init__(self, tipo_documento: TipoDocumento, numero: str) -> None:
         super().__init__(
             "HUESPED_DUPLICADO: ya existe un huesped "
@@ -19,7 +21,7 @@ class HuespedDuplicadoError(ValueError):
         )
 
 
-class HuespedConReservasError(ValueError):
+class HuespedConReservasError(ConflictoError):
     def __init__(self) -> None:
         super().__init__(
             "HUESPED_CON_RESERVAS: no se puede eliminar "
@@ -69,9 +71,11 @@ def listar_huespedes(
     )
     items = list(
         db.scalars(
-            consulta.order_by(Huesped.id)
-            .offset((pagina - 1) * tamano)
-            .limit(tamano)
+            paginar_consulta(
+                consulta.order_by(Huesped.id),
+                pagina=pagina,
+                tamano=tamano,
+            )
         ).all()
     )
     return items, total or 0
@@ -147,9 +151,11 @@ def listar_reservas_de_huesped(
     )
     items = list(
         db.scalars(
-            consulta.order_by(Reserva.fecha_entrada.desc())
-            .offset((pagina - 1) * tamano)
-            .limit(tamano)
+            paginar_consulta(
+                consulta.order_by(Reserva.fecha_entrada.desc(), Reserva.id.desc()),
+                pagina=pagina,
+                tamano=tamano,
+            )
         ).all()
     )
     return items, total or 0

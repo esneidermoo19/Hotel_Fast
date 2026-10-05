@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 from pydantic import EmailStr, Field, field_validator
 
+from app.core.pagination import Pagina
 from app.models import EstadoReserva, TipoDocumento
 from app.schemas.base import CamelCaseSchema
 
@@ -68,13 +69,6 @@ class HuespedResumen(CamelCaseSchema):
     numero_documento: str
 
 
-class HuespedPagina(CamelCaseSchema):
-    items: list[HuespedRead]
-    total: int
-    pagina: int
-    tamano: int
-
-
 class ReservaDeHuespedRead(CamelCaseSchema):
     id: int
     codigo: str
@@ -84,8 +78,5 @@ class ReservaDeHuespedRead(CamelCaseSchema):
     estado: EstadoReserva
 
 
-class ReservaDeHuespedPagina(CamelCaseSchema):
-    items: list[ReservaDeHuespedRead]
-    total: int
-    pagina: int
-    tamano: int
+HuespedPagina = Pagina[HuespedRead]
+ReservaDeHuespedPagina = Pagina[ReservaDeHuespedRead]

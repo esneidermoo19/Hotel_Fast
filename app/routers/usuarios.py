@@ -6,24 +6,70 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import require_roles
 from app.core.errors import ConflictoError, NoEncontradoError
+from app.core.pagination import PaginacionParams
 from app.models import RolUsuario, Usuario
-from app.schemas.usuario import UsuarioActualizar, UsuarioCrear, UsuarioRead
+from app.schemas.usuario import (
+    UsuarioActualizar,
+    UsuarioCrear,
+    UsuarioPagina,
+    UsuarioRead,
+)
 from app.services import auditoria_service, usuario_service
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 solo_administradores = require_roles(RolUsuario.ADMIN)
 
 
-@router.get("", response_model=list[UsuarioRead])
+@router.get(
+    "",
+    response_model=UsuarioPagina,
+    summary="Listar usuarios",
+    description="Lista usuarios con paginacion y filtros por rol, estado y texto.",
+    responses={
+        200: {"description": "Pagina de usuarios"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        422: {"description": "Parametros de consulta invalidos"},
+    },
+)
 def listar_usuarios(
     db: Annotated[Session, Depends(get_db)],
     usuario: Annotated[Usuario, Depends(solo_administradores)],
+    paginacion: Annotated[PaginacionParams, Depends()],
+    rol: RolUsuario | None = None,
+    activo: bool | None = None,
+    q: str | None = None,
     solo_activos: bool = False,
-) -> list[UsuarioRead]:
-    return usuario_service.listar_usuarios(db, solo_activos=solo_activos)
+) -> UsuarioPagina:
+    items, total = usuario_service.listar_usuarios(
+        db,
+        rol=rol,
+        activo=activo,
+        q=q,
+        pagina=paginacion.pagina,
+        tamano=paginacion.tamano,
+        solo_activos=solo_activos,
+    )
+    return UsuarioPagina(
+        items=items,
+        total=total,
+        pagina=paginacion.pagina,
+        tamano=paginacion.tamano,
+    )
 
 
-@router.get("/{usuario_id}", response_model=UsuarioRead)
+@router.get(
+    "/{usuario_id}",
+    response_model=UsuarioRead,
+    summary="Obtener usuario",
+    description="Obtiene un usuario por su identificador.",
+    responses={
+        200: {"description": "Usuario encontrado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Usuario no encontrado"},
+    },
+)
 def obtener_usuario(
     usuario_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -35,7 +81,20 @@ def obtener_usuario(
         raise NoEncontradoError(str(error)) from error
 
 
-@router.post("", response_model=UsuarioRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=UsuarioRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear usuario",
+    description="Crea un usuario y registra la accion en la bitacora.",
+    responses={
+        201: {"description": "Usuario creado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        409: {"description": "El username o email ya existe"},
+        422: {"description": "Datos de usuario invalidos"},
+    },
+)
 def crear_usuario(
     request: Request,
     datos: UsuarioCrear,
@@ -58,7 +117,20 @@ def crear_usuario(
     return nuevo
 
 
-@router.put("/{usuario_id}", response_model=UsuarioRead)
+@router.put(
+    "/{usuario_id}",
+    response_model=UsuarioRead,
+    summary="Actualizar usuario",
+    description="Actualiza los datos de un usuario existente.",
+    responses={
+        200: {"description": "Usuario actualizado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Usuario no encontrado"},
+        409: {"description": "Los cambios entran en conflicto con las reglas de usuarios"},
+        422: {"description": "Datos de usuario invalidos"},
+    },
+)
 def actualizar_usuario(
     request: Request,
     usuario_id: int,
@@ -94,7 +166,19 @@ def actualizar_usuario(
     return actualizado
 
 
-@router.post("/{usuario_id}/desactivar", response_model=UsuarioRead)
+@router.post(
+    "/{usuario_id}/desactivar",
+    response_model=UsuarioRead,
+    summary="Desactivar usuario",
+    description="Desactiva una cuenta sin eliminar su historial.",
+    responses={
+        200: {"description": "Usuario desactivado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Usuario no encontrado"},
+        409: {"description": "No se puede desactivar esta cuenta"},
+    },
+)
 def desactivar_usuario(
     request: Request,
     usuario_id: int,
@@ -125,7 +209,19 @@ def desactivar_usuario(
     return desactivado
 
 
-@router.post("/{usuario_id}/reactivar", response_model=UsuarioRead)
+@router.post(
+    "/{usuario_id}/reactivar",
+    response_model=UsuarioRead,
+    summary="Reactivar usuario",
+    description="Reactiva una cuenta de usuario desactivada.",
+    responses={
+        200: {"description": "Usuario reactivado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Usuario no encontrado"},
+        409: {"description": "Los cambios entran en conflicto con las reglas de usuarios"},
+    },
+)
 def reactivar_usuario(
     request: Request,
     usuario_id: int,
@@ -155,7 +251,19 @@ def reactivar_usuario(
     return reactivado
 
 
-@router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{usuario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar usuario",
+    description="Elimina fisicamente una cuenta creada por error.",
+    responses={
+        204: {"description": "Usuario eliminado"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Usuario no encontrado"},
+        409: {"description": "No puedes eliminar tu propia cuenta"},
+    },
+)
 def eliminar_usuario(
     usuario_id: int,
     db: Annotated[Session, Depends(get_db)],
@@ -172,4 +280,3 @@ def eliminar_usuario(
     db.delete(objetivo)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-

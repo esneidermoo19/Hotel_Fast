@@ -53,9 +53,108 @@ def test_listar_y_obtener_usuario(
     detalle = client.get(f"/api/usuarios/{admin_user.id}", headers=admin_headers)
 
     assert listado.status_code == 200
-    assert len(listado.json()) == 2
+    assert listado.json()["total"] == 2
+    assert len(listado.json()["items"]) == 2
     assert detalle.status_code == 200
     assert detalle.json()["id"] == admin_user.id
+
+
+def test_listar_usuarios_filtra_y_pagina(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    client.post("/api/usuarios", json=payload_usuario(), headers=admin_headers)
+    inactivo = client.post(
+        "/api/usuarios",
+        json=payload_usuario(
+            username="inactivo",
+            email="inactivo@example.com",
+            role="ADMIN",
+        ),
+        headers=admin_headers,
+    )
+    assert inactivo.status_code == 201
+    desactivado = client.post(
+        f"/api/usuarios/{inactivo.json()['id']}/desactivar",
+        headers=admin_headers,
+    )
+    assert desactivado.status_code == 200
+
+    respuesta = client.get(
+        "/api/usuarios",
+        params={
+            "rol": "RECEPCION",
+            "activo": "true",
+            "q": "NUEVO",
+            "pagina": 1,
+            "tamano": 1,
+        },
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["total"] == 1
+    assert respuesta.json()["pagina"] == 1
+    assert respuesta.json()["tamano"] == 1
+    assert [item["username"] for item in respuesta.json()["items"]] == ["nuevo"]
+
+
+def test_listar_usuarios_pagina_sin_repetir_ni_perder_registros(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    for indice in range(3):
+        response = client.post(
+            "/api/usuarios",
+            json=payload_usuario(
+                username=f"pagina{indice}",
+                email=f"pagina{indice}@example.com",
+            ),
+            headers=admin_headers,
+        )
+        assert response.status_code == 201
+
+    primera = client.get(
+        "/api/usuarios",
+        params={"pagina": 1, "tamano": 2},
+        headers=admin_headers,
+    )
+    segunda = client.get(
+        "/api/usuarios",
+        params={"pagina": 2, "tamano": 2},
+        headers=admin_headers,
+    )
+    pagina_uno = primera.json()
+    pagina_dos = segunda.json()
+
+    assert primera.status_code == segunda.status_code == 200
+    assert pagina_uno["total"] == pagina_dos["total"] == 4
+    assert (pagina_uno["pagina"], pagina_uno["tamano"]) == (1, 2)
+    assert (pagina_dos["pagina"], pagina_dos["tamano"]) == (2, 2)
+    ids_primera = [item["id"] for item in pagina_uno["items"]]
+    ids_segunda = [item["id"] for item in pagina_dos["items"]]
+    ids_paginados = ids_primera + ids_segunda
+    assert not set(ids_primera) & set(ids_segunda)
+    assert ids_paginados == sorted(ids_paginados)
+    assert len(set(ids_paginados)) == 4
+
+
+@pytest.mark.parametrize("tamano", [0, 101])
+def test_listar_usuarios_rechaza_tamano_fuera_de_rango(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    tamano: int,
+) -> None:
+    response = client.get(
+        "/api/usuarios",
+        params={"pagina": 1, "tamano": tamano},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 422
+    assert set(response.json()) == {"detail", "code", "errors"}
+    assert response.json()["code"] == "VALIDACION"
+    assert response.json()["errors"]
 
 
 def test_username_duplicado_devuelve_409_sin_distinguir_mayusculas(
@@ -498,18 +597,27 @@ def test_auditoria_se_consulta_en_descendente_y_con_filtros(
         headers=admin_headers,
     )
 
-    todos = client.get("/api/auditoria", headers=admin_headers)
+    todos = client.get(
+        "/api/auditoria",
+        params={"pagina": 1, "tamano": 10},
+        headers=admin_headers,
+    )
     filtrado = client.get(
-        "/api/auditoria?accion=CREAR_USUARIO",
+        "/api/auditoria",
+        params={"accion": "CREAR_USUARIO", "pagina": 1, "tamano": 10},
         headers=admin_headers,
     )
 
     assert todos.status_code == 200
-    assert [registro["id"] for registro in todos.json()] == sorted(
-        [registro["id"] for registro in todos.json()],
+    assert set(todos.json()) == {"items", "total", "pagina", "tamano"}
+    assert todos.json()["pagina"] == 1
+    assert todos.json()["tamano"] == 10
+    assert todos.json()["total"] >= 2
+    assert [registro["id"] for registro in todos.json()["items"]] == sorted(
+        [registro["id"] for registro in todos.json()["items"]],
         reverse=True,
     )
-    assert len(filtrado.json()) == 2
+    assert len(filtrado.json()["items"]) == 2
 
 
 def test_auditoria_requiere_admin(
@@ -582,4 +690,3 @@ def test_schema_usuario_crear_rechaza_username_con_espacios() -> None:
             nombre="X",
             password="clave-fuerte-1",
         )
-

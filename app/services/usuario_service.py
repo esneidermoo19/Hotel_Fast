@@ -7,10 +7,11 @@ Restricciones que el router solo traduce a HTTP:
 - desactivar o cambiar la contraseña revoca todas las sesiones del usuario
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ConflictoError, ValidacionError
+from app.core.pagination import paginar_consulta
 from app.core.passwords import mensaje_de_fortaleza
 from app.core.security import hash_password, verify_password
 from app.models.usuario import RolUsuario, Usuario
@@ -38,11 +39,43 @@ class NoSePuedeModificarASiMismoError(ValueError):
         super().__init__(f"No puedes {accion} tu propia cuenta desde esta pantalla")
 
 
-def listar_usuarios(db: Session, *, solo_activos: bool = False) -> list[Usuario]:
-    consulta = select(Usuario).order_by(Usuario.id)
-    if solo_activos:
+def listar_usuarios(
+    db: Session,
+    *,
+    rol: RolUsuario | None = None,
+    activo: bool | None = None,
+    q: str | None = None,
+    pagina: int = 1,
+    tamano: int = 20,
+    solo_activos: bool = False,
+) -> tuple[list[Usuario], int]:
+    consulta = select(Usuario)
+    if rol is not None:
+        consulta = consulta.where(Usuario.role == rol)
+    if activo is not None:
+        consulta = consulta.where(Usuario.activo.is_(activo))
+    elif solo_activos:
         consulta = consulta.where(Usuario.activo.is_(True))
-    return list(db.scalars(consulta).all())
+    if q and q.strip():
+        patron = f"%{q.strip()}%"
+        consulta = consulta.where(
+            or_(
+                Usuario.username.ilike(patron),
+                Usuario.email.ilike(patron),
+                Usuario.nombre.ilike(patron),
+            )
+        )
+    total = db.scalar(select(func.count()).select_from(consulta.subquery())) or 0
+    items = list(
+        db.scalars(
+            paginar_consulta(
+                consulta.order_by(Usuario.id),
+                pagina=pagina,
+                tamano=tamano,
+            )
+        ).all()
+    )
+    return items, total
 
 
 def obtener_usuario(db: Session, usuario_id: int) -> Usuario:
