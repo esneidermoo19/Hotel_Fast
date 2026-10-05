@@ -96,6 +96,14 @@ class ConflictoError(AppError):
         super().__init__(detail)
 
 
+class ReglaNegocioError(AppError):
+    codigo = "REGLA_NEGOCIO"
+    status_code = status.HTTP_409_CONFLICT
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+
+
 class DemasiadasSolicitudesError(AppError):
     codigo = "DEMASIADAS_SOLICITUDES"
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
