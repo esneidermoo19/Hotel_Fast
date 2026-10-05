@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.controllers.habitaciones import router
+from app.routers.habitaciones import router
 
 
 def habitacion_payload(numero: int, **cambios: object) -> dict[str, object]:

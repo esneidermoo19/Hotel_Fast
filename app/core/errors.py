@@ -32,7 +32,7 @@ class AppError(Exception):
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {"detail": self.detail, "code": self.codigo}
-        if self.errors:
+        if self.errors is not None:
             payload["errors"] = self.errors
         return payload
 
@@ -54,7 +54,12 @@ class TokenInvalidoError(NoAutorizadoError):
     codigo = "TOKEN_INVALIDO"
 
     def __init__(self, detail: str = "Token de acceso invalido") -> None:
-        AppError.__init__(self, detail, headers={"WWW-Authenticate": "Bearer"})
+        AppError.__init__(
+            self,
+            detail,
+            errors=[],
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 class RefreshTokenInvalidoError(NoAutorizadoError):

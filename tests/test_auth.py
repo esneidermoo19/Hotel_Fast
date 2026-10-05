@@ -2,9 +2,10 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
-from app.controllers.auth import router
 from app.core.config import settings
 from app.models import Usuario
+from app.routers.auth import router
+from app.services import auth_service
 
 
 def test_auth_router_prefix() -> None:
@@ -137,3 +138,70 @@ def test_login_busca_por_username_case_insensitive(
 
     assert response.status_code == 200
     assert response.json()["id"] == admin_user.id
+
+
+@pytest.mark.parametrize(
+    ("campo", "identificador"),
+    [("username", "ADMIN"), ("email", "ADMIN@EXAMPLE.COM")],
+)
+def test_login_acepta_username_o_email(
+    client: TestClient,
+    admin_user: Usuario,
+    campo: str,
+    identificador: str,
+) -> None:
+    response = client.post(
+        "/api/auth/login",
+        json={campo: identificador, "password": "test-password-123"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == admin_user.id
+
+
+def test_login_rechaza_identificador_ausente(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        "/api/auth/login",
+        json={"password": "test-password-123"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_login_usuario_inexistente_verifica_hash_falso(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hashes_verificados: list[str] = []
+
+    def verificar(password: str, password_hash: str) -> bool:
+        hashes_verificados.append(password_hash)
+        return False
+
+    monkeypatch.setattr(auth_service, "verify_password", verificar)
+    response = client.post(
+        "/api/auth/login",
+        json={"username": "no-existe", "password": "cualquier-clave"},
+    )
+
+    assert response.status_code == 401
+    assert hashes_verificados == [auth_service._HASH_FALSO]
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [None, "Bearer token-invalido"],
+)
+def test_me_siempre_responde_401_bearer_sin_token_valido(
+    client: TestClient,
+    authorization: str | None,
+) -> None:
+    headers = {"Authorization": authorization} if authorization else {}
+    response = client.get("/api/auth/me", headers=headers)
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+    assert response.json()["code"] == "TOKEN_INVALIDO"
+    assert response.json()["errors"] == []
