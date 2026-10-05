@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.config import settings
+from app.core.config import Settings
 from app.core.limiter import limiter
 
 INTENTOS = 6
@@ -76,5 +76,6 @@ def test_refresh_tambien_es_limitado(
 
 
 def test_limite_configurado_por_defecto() -> None:
-    assert settings.login_rate_limit_per_minute == 5
-    assert settings.rate_limit_enabled is True
+    config = Settings(_env_file=None, environment="test")
+    assert config.login_rate_limit_per_minute == 5
+    assert config.rate_limit_enabled is True

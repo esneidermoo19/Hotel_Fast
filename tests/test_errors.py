@@ -31,6 +31,7 @@ def test_token_invalido_usa_codigo_español(
 
     assert response.status_code == 401
     assert response.json()["code"] == "TOKEN_INVALIDO"
+    assert response.json()["errors"] == []
     assert response.headers["www-authenticate"] == "Bearer"
 
 

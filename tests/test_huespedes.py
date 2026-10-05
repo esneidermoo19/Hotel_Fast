@@ -164,8 +164,35 @@ def test_paginacion(
         headers=admin_headers,
     )
     assert primera.json()["total"] == 3
+    assert primera.json()["pagina"] == 1
+    assert primera.json()["tamano"] == 2
     assert len(primera.json()["items"]) == 2
+    assert segunda.json()["pagina"] == 2
+    assert segunda.json()["tamano"] == 2
+    assert segunda.json()["total"] == 3
     assert len(segunda.json()["items"]) == 1
+    ids_primera = [item["id"] for item in primera.json()["items"]]
+    ids_segunda = [item["id"] for item in segunda.json()["items"]]
+    assert not set(ids_primera) & set(ids_segunda)
+    assert len(set(ids_primera + ids_segunda)) == 3
+
+
+@pytest.mark.parametrize("tamano", [0, 101])
+def test_listar_huespedes_rechaza_tamano_fuera_de_rango(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    tamano: int,
+) -> None:
+    response = client.get(
+        "/api/huespedes",
+        params={"pagina": 1, "tamano": tamano},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 422
+    assert set(response.json()) == {"detail", "code", "errors"}
+    assert response.json()["code"] == "VALIDACION"
+    assert response.json()["errors"]
 
 
 def test_documento_duplicado_devuelve_409(
@@ -181,7 +208,10 @@ def test_documento_duplicado_devuelve_409(
     )
     assert primera.status_code == 201
     assert segunda.status_code == 409
-    assert "HUESPED_DUPLICADO" in segunda.json()["detail"]
+    assert segunda.json()["detail"] == (
+        "HUESPED_DUPLICADO: ya existe un huesped con CC 6666666666"
+    )
+    assert segunda.json()["code"] == "CONFLICTO"
 
 
 def test_integrity_error_por_documento_duplicado_devuelve_409(
@@ -203,7 +233,10 @@ def test_integrity_error_por_documento_duplicado_devuelve_409(
     )
 
     assert segundo.status_code == 409
-    assert "HUESPED_DUPLICADO" in segundo.json()["detail"]
+    assert segundo.json()["detail"] == (
+        "HUESPED_DUPLICADO: ya existe un huesped con CC 6767676767"
+    )
+    assert segundo.json()["code"] == "CONFLICTO"
 
 
 def test_mismo_numero_distinto_tipo_esta_permitido(
@@ -246,7 +279,9 @@ def test_actualizar_a_documento_existente_devuelve_409(
         headers=admin_headers,
     )
     assert respuesta.status_code == 409
-    assert "HUESPED_DUPLICADO" in respuesta.json()["detail"]
+    assert respuesta.json()["detail"] == (
+        "HUESPED_DUPLICADO: ya existe un huesped con CC 8888888881"
+    )
 
 
 def test_eliminar_con_reservas_devuelve_409(
@@ -274,21 +309,20 @@ def test_eliminar_con_reservas_devuelve_409(
         f"/api/huespedes/{huesped_id}", headers=admin_headers
     )
     assert respuesta.status_code == 409
-    assert "HUESPED_CON_RESERVAS" in respuesta.json()["detail"]
+    assert respuesta.json()["detail"] == (
+        "HUESPED_CON_RESERVAS: no se puede eliminar un huesped con reservas"
+    )
 
 
 def test_huesped_inexistente_devuelve_404(
     client: TestClient,
     admin_headers: dict[str, str],
 ) -> None:
-    assert (
-        client.get("/api/huespedes/9999", headers=admin_headers).status_code
-        == 404
-    )
-    assert (
-        client.delete("/api/huespedes/9999", headers=admin_headers).status_code
-        == 404
-    )
+    lectura = client.get("/api/huespedes/9999", headers=admin_headers)
+    eliminacion = client.delete("/api/huespedes/9999", headers=admin_headers)
+    assert lectura.status_code == eliminacion.status_code == 404
+    assert lectura.json()["detail"] == "No se encontro el huesped"
+    assert eliminacion.json()["detail"] == "No se encontro el huesped"
 
 
 def test_recepcion_puede_consultar_crear_y_actualizar(
@@ -382,23 +416,69 @@ def test_reservas_de_huesped_ordenadas_por_entrada_desc(
             fecha_entrada=date(2026, 11, 1),
             fecha_salida=date(2026, 11, 3),
         )
+        crear_reserva(
+            db,
+            huesped=huesped,
+            habitacion=habitacion,
+            usuario=usuario,
+            codigo="RES-2026-000013",
+            fecha_entrada=date(2026, 11, 1),
+            fecha_salida=date(2026, 11, 4),
+        )
         huesped_id = huesped.id
     finally:
         db.close()
 
     respuesta = client.get(
-        f"/api/huespedes/{huesped_id}/reservas", headers=admin_headers
+        f"/api/huespedes/{huesped_id}/reservas",
+        params={"pagina": 1, "tamano": 2},
+        headers=admin_headers,
     )
     assert respuesta.status_code == 200
     pagina = respuesta.json()
-    assert pagina["total"] == 2
-    assert pagina["items"][0]["codigo"] == "RES-2026-000012"
-    assert pagina["items"][1]["codigo"] == "RES-2026-000011"
+    assert pagina["total"] == 3
+    assert pagina["pagina"] == 1
+    assert pagina["tamano"] == 2
+    assert [item["codigo"] for item in pagina["items"]] == [
+        "RES-2026-000013",
+        "RES-2026-000012",
+    ]
+    pagina_dos = client.get(
+        f"/api/huespedes/{huesped_id}/reservas",
+        params={"pagina": 2, "tamano": 2},
+        headers=admin_headers,
+    )
+    assert pagina_dos.status_code == 200
+    assert pagina_dos.json()["pagina"] == 2
+    assert pagina_dos.json()["tamano"] == 2
+    assert pagina_dos.json()["total"] == 3
+    todos_los_ids = [item["id"] for item in pagina["items"] + pagina_dos.json()["items"]]
+    assert len(todos_los_ids) == 3
+    assert len(set(todos_los_ids)) == 3
+    assert pagina_dos.json()["items"][0]["codigo"] == "RES-2026-000011"
 
     inexistente = client.get(
         "/api/huespedes/9999/reservas", headers=admin_headers
     )
     assert inexistente.status_code == 404
+
+
+@pytest.mark.parametrize("tamano", [0, 101])
+def test_listar_reservas_huesped_rechaza_tamano_fuera_de_rango(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    tamano: int,
+) -> None:
+    response = client.get(
+        "/api/huespedes/1/reservas",
+        params={"pagina": 1, "tamano": tamano},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 422
+    assert set(response.json()) == {"detail", "code", "errors"}
+    assert response.json()["code"] == "VALIDACION"
+    assert response.json()["errors"]
 
 
 @pytest.mark.parametrize(

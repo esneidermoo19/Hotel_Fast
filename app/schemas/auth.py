@@ -1,15 +1,21 @@
-from pydantic import ConfigDict, EmailStr, Field
+from pydantic import ConfigDict, EmailStr, Field, model_validator
 
 from app.models.usuario import RolUsuario
 from app.schemas.base import CamelCaseSchema
 
 
 class LoginRequest(CamelCaseSchema):
-    username: str
-    email: str
+    username: str | None = Field(default=None, min_length=1)
+    email: str | None = Field(default=None, min_length=1)
     password: str
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="after")
+    def validar_identificador(self) -> "LoginRequest":
+        if self.username is None and self.email is None:
+            raise ValueError("Debes proporcionar username o email")
+        return self
 
 
 class CambiarPasswordRequest(CamelCaseSchema):

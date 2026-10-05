@@ -18,8 +18,15 @@ jobs:
           cache: "pip"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
+      - run: python -m app.export_openapi
       - run: ruff check .
       - run: python -m pytest
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi
+          path: openapi.json
+          if-no-files-found: error
 
   migrations:
     runs-on: ubuntu-latest
@@ -48,6 +55,12 @@ jobs:
           cache: "pip"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements-dev.txt
+      - name: Verify single Alembic head
+        run: |
+          heads="$(python -m alembic heads)"
+          printf '%s\n' "$heads"
+          count="$(printf '%s\n' "$heads" | grep -c ' (head)$' || true)"
+          test "$count" -eq 1
       - run: python -m alembic upgrade head
       - run: python -m alembic check
       - run: python -m alembic downgrade base

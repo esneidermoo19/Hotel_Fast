@@ -24,7 +24,17 @@ from app.services.auth_service import autenticar_usuario
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    summary="Iniciar sesion",
+    description="Valida un username o email y devuelve tokens de acceso.",
+    responses={
+        200: {"description": "Sesion iniciada"},
+        401: {"description": "Credenciales incorrectas"},
+        422: {"description": "Solicitud invalida"},
+    },
+)
 @limiter.limit(limite_login())
 def login(
     request: Request,
@@ -53,7 +63,16 @@ def login(
     )
 
 
-@router.post("/refresh", response_model=TokenPair)
+@router.post(
+    "/refresh",
+    response_model=TokenPair,
+    summary="Renovar tokens",
+    description="Rota el refresh token y emite un nuevo par de tokens.",
+    responses={
+        200: {"description": "Tokens renovados"},
+        401: {"description": "Refresh token invalido"},
+    },
+)
 @limiter.limit(limite_login())
 def refrescar_token(
     request: Request,
@@ -71,7 +90,16 @@ def refrescar_token(
     )
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Cerrar sesion",
+    description="Revoca el refresh token proporcionado.",
+    responses={
+        204: {"description": "Sesion cerrada"},
+        401: {"description": "Refresh token invalido"},
+    },
+)
 def cerrar_sesion(
     datos: RefreshRequest,
     db: Annotated[Session, Depends(get_db)],
@@ -80,7 +108,16 @@ def cerrar_sesion(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/cambiar-password")
+@router.post(
+    "/cambiar-password",
+    summary="Cambiar contrasena",
+    description="Actualiza la contrasena del usuario autenticado.",
+    responses={
+        200: {"description": "Contrasena actualizada"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        422: {"description": "Solicitud invalida"},
+    },
+)
 def cambiar_password(
     request: Request,
     datos: CambiarPasswordRequest,
@@ -105,9 +142,17 @@ def cambiar_password(
     return {"mensaje": "Contrasena actualizada"}
 
 
-@router.get("/me", response_model=UsuarioRead)
+@router.get(
+    "/me",
+    response_model=UsuarioRead,
+    summary="Obtener sesion actual",
+    description="Devuelve los datos del usuario autenticado.",
+    responses={
+        200: {"description": "Sesion actual"},
+        401: {"description": "Token de acceso invalido o ausente"},
+    },
+)
 def obtener_sesion(
     usuario: Annotated[Usuario, Depends(get_current_user)],
 ) -> Usuario:
     return usuario
-
