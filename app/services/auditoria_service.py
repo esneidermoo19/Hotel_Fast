@@ -6,19 +6,18 @@ tokens en la bitácora.
 """
 
 import logging
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date
 from typing import Any
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, attributes
 
 from app.core.errors import ValidacionError
 from app.core.pagination import paginar_consulta
+from app.core.tiempo import limites_utc_de_rango
 from app.models.auditoria import Auditoria
 
 logger = logging.getLogger(__name__)
-BOGOTA = ZoneInfo("America/Bogota")
 
 # Campos que nunca deben quedar en el detalle de auditoría.
 CAMPOS_SENSIBLES = {
@@ -95,19 +94,11 @@ def listar_auditoria(
         consulta = consulta.where(Auditoria.accion == accion)
     if usuario_id is not None:
         consulta = consulta.where(Auditoria.usuario_id == usuario_id)
-    if desde is not None:
-        inicio_utc = datetime.combine(
-            desde,
-            time.min,
-            tzinfo=BOGOTA,
-        ).astimezone(UTC)
+
+    inicio_utc, fin_exclusivo_utc = limites_utc_de_rango(desde, hasta)
+    if inicio_utc is not None:
         consulta = consulta.where(Auditoria.created_at >= inicio_utc)
-    if hasta is not None:
-        fin_exclusivo_utc = datetime.combine(
-            hasta + timedelta(days=1),
-            time.min,
-            tzinfo=BOGOTA,
-        ).astimezone(UTC)
+    if fin_exclusivo_utc is not None:
         consulta = consulta.where(Auditoria.created_at < fin_exclusivo_utc)
 
     total = db.scalar(select(func.count()).select_from(consulta.subquery())) or 0
