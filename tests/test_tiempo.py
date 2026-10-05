@@ -2,7 +2,8 @@
 
 from datetime import UTC, date, datetime
 
-import pytest
+from fastapi import Depends, FastAPI
+from fastapi.testclient import TestClient
 
 from app.core.tiempo import (
     ZONA,
@@ -13,6 +14,7 @@ from app.core.tiempo import (
     inicio_de_semana,
     limites_utc_de_rango,
     limites_utc_del_dia,
+    obtener_hoy,
 )
 
 
@@ -119,25 +121,35 @@ def test_como_utc_con_naive() -> None:
     assert dt_utc == datetime(2026, 10, 4, 17, 0, tzinfo=UTC)
 
 
-def test_obtener_hoy_sobrescrita(monkeypatch: pytest.MonkeyPatch) -> None:
-    """obtener_hoy puede sobrescribirse en tests."""
-    fecha_fija = date(2025, 1, 15)
+def test_obtener_hoy_sobrescrita_dependency_override() -> None:
+    """obtener_hoy puede sobrescribirse con FastAPI dependency_overrides."""
+    app = FastAPI()
 
-    def hoy_fijo() -> date:
-        return fecha_fija
+    @app.get("/hoy")
+    def leer_hoy(hoy: date = Depends(obtener_hoy)) -> dict[str, str]:  # noqa: B008
+        return {"hoy": hoy.isoformat()}
 
-    # Simular dependency_overrides: parchear el módulo antes de importar la función
-    import app.core.tiempo as tiempo_mod
+    client = TestClient(app)
 
-    original = tiempo_mod.obtener_hoy
+    # Sin override: usa la implementación real (hoy en Bogotá)
+    response = client.get("/hoy")
+    assert response.status_code == 200
+    assert response.json() == {"hoy": hoy_bogota().isoformat()}
+
+    # Con override
+    fecha_fija = date(2026, 1, 1)
+    app.dependency_overrides[obtener_hoy] = lambda: fecha_fija
     try:
-        tiempo_mod.obtener_hoy = hoy_fijo
-        # Importar después del parche para que use la versión sobrescrita
-        from app.core.tiempo import obtener_hoy as obtener_hoy_parcheado
-
-        assert obtener_hoy_parcheado() == fecha_fija
+        response = client.get("/hoy")
+        assert response.status_code == 200
+        assert response.json() == {"hoy": "2026-01-01"}
     finally:
-        tiempo_mod.obtener_hoy = original
+        app.dependency_overrides.clear()
+
+    # Sin override de nuevo: vuelve a la implementación real
+    response = client.get("/hoy")
+    assert response.status_code == 200
+    assert response.json() == {"hoy": hoy_bogota().isoformat()}
 
 
 def test_ahora_utc_es_aware() -> None:
