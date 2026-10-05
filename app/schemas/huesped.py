@@ -1,13 +1,11 @@
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from pydantic import EmailStr, Field, field_validator
 
 from app.core.pagination import Pagina
+from app.core.tiempo import hoy_bogota
 from app.models import EstadoReserva, TipoDocumento
 from app.schemas.base import CamelCaseSchema
-
-BOGOTA = ZoneInfo("America/Bogota")
 
 
 def _compactar_texto(valor: str, campo: str) -> str:
@@ -46,7 +44,7 @@ class HuespedCreate(CamelCaseSchema):
     @field_validator("fecha_nacimiento")
     @classmethod
     def nacimiento_no_futuro(cls, valor: date | None) -> date | None:
-        if valor is not None and valor > datetime.now(BOGOTA).date():
+        if valor is not None and valor > hoy_bogota():
             raise ValueError("La fecha de nacimiento no puede ser futura")
         return valor
 
