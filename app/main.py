@@ -15,8 +15,15 @@ from app.routers import (
     auditoria,
     auth,
     catalogos,
+    consumos,
+    cuentas,
+    dashboard,
     habitaciones,
+    horarios,
     huespedes,
+    pagos,
+    reportes,
+    reservas,
     usuarios,
 )
 
@@ -36,6 +43,13 @@ app.include_router(huespedes.router)
 app.include_router(usuarios.router)
 app.include_router(catalogos.router)
 app.include_router(auditoria.router)
+app.include_router(reservas.router)
+app.include_router(pagos.router)
+app.include_router(consumos.router)
+app.include_router(cuentas.router)
+app.include_router(horarios.router)
+app.include_router(reportes.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/api/health", response_model=None, tags=["health"])
