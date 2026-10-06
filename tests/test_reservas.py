@@ -1045,3 +1045,465 @@ def test_rutas_requieren_token(client: TestClient) -> None:
         params={"entrada": HOY.isoformat(), "salida": (HOY + timedelta(days=1)).isoformat()},
     ).status_code == 401
     assert client.post("/api/reservas", json={}).status_code == 401
+
+
+# --- Confirmar ---------------------------------------------------------------
+
+
+def test_confirmar_reserva_pendiente_a_confirmada(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1101, estado=EstadoReserva.PENDIENTE)
+    response = client.post(
+        f"/api/reservas/{reserva.id}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CONFIRMADA"
+    assert response.json()["id"] == reserva.id
+
+
+def test_confirmar_con_entrada_en_el_pasado_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Confirmar falla con ENTRADA_EN_PASADO si fecha_entrada < hoy."""
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1102, estado=EstadoReserva.PENDIENTE, entrada=HOY - timedelta(days=1)
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "ENTRADA_EN_PASADO"
+
+
+def test_confirmar_excluye_la_propia_reserva_al_verificar_solapamiento(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Confirmar no debe fallar por solaparse con sí misma."""
+    huesped = crear_huesped(db_session)
+    habitacion = crear_habitacion(db_session, numero=1103)
+    reserva = client.post(
+        "/api/reservas", json=_payload(huesped.id, habitacion.id), headers=admin_headers
+    ).json()
+
+    # La reserva está en PENDIENTE, confirmarla no debe detectar solapamiento consigo misma
+    response = client.post(
+        f"/api/reservas/{reserva['id']}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CONFIRMADA"
+
+
+def test_confirmar_desde_estado_invalido(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Confirmar desde CANCELADA da TRANSICION_INVALIDA."""
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1104, estado=EstadoReserva.CANCELADA
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+    assert "CANCELADA" in response.json()["detail"]
+    assert "CONFIRMADA" in response.json()["detail"]
+
+
+def test_confirmar_habitacion_inactiva_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Si la habitación pasó a MANTENIMIENTO, confirmar falla."""
+    huesped = crear_huesped(db_session)
+    habitacion = crear_habitacion(db_session, numero=1105)
+    reserva = client.post(
+        "/api/reservas", json=_payload(huesped.id, habitacion.id), headers=admin_headers
+    ).json()
+
+    # Cambiar habitación a mantenimiento
+    habitacion_act = db_session.get(type(habitacion), habitacion.id)
+    habitacion_act.estado = EstadoHabitacion.MANTENIMIENTO
+    db_session.commit()
+
+    response = client.post(
+        f"/api/reservas/{reserva['id']}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "HABITACION_INACTIVA"
+
+
+def test_confirmar_solapamiento_con_otra_reserva_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Confirmar falla si hay otra reserva que solapa (excluyendo la propia)."""
+    huesped = crear_huesped(db_session)
+    habitacion = crear_habitacion(db_session, numero=1106)
+    # Reserva confirmada que ocupa el rango
+    _ = crear_reserva(
+        db_session,
+        huesped=huesped,
+        habitacion=habitacion,
+        usuario=crear_usuario(db_session, username="u1107", email="u1107@ex.com"),
+        codigo="RES-2026-001107",
+        fecha_entrada=HOY + timedelta(days=2),
+        fecha_salida=HOY + timedelta(days=5),
+        estado=EstadoReserva.CONFIRMADA,
+    )
+    # Reserva pendiente en el mismo rango (misma habitación)
+    reserva2 = crear_reserva(
+        db_session,
+        huesped=huesped,
+        habitacion=habitacion,
+        usuario=crear_usuario(db_session, username="u1108", email="u1108@ex.com"),
+        codigo="RES-2026-001108",
+        fecha_entrada=HOY + timedelta(days=3),
+        fecha_salida=HOY + timedelta(days=6),
+        estado=EstadoReserva.PENDIENTE,
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva2.id}/confirmar", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RESERVA_SOLAPADA"
+
+
+def test_confirmar_reserva_inexistente(
+    client: TestClient, admin_headers: dict[str, str], hoy_fijo
+) -> None:
+    response = client.post("/api/reservas/9999/confirmar", headers=admin_headers)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "RESERVA_NO_ENCONTRADA"
+
+
+# --- Cancelar ----------------------------------------------------------------
+
+
+def test_cancelar_reserva_pendiente(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1201, estado=EstadoReserva.PENDIENTE)
+    response = client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "Cambio de planes"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CANCELADA"
+    assert response.json()["motivoCancelacion"] == "Cambio de planes"
+
+
+def test_cancelar_reserva_confirmada(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1202, estado=EstadoReserva.CONFIRMADA)
+    response = client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "No vendra"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CANCELADA"
+
+
+def test_cancelar_motivo_vacio_o_espacios_da_422(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Motivo solo espacios o menos de 3 chars -> 422."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1203, estado=EstadoReserva.PENDIENTE)
+
+    for motivo in ["", "  ", " a ", "ab"]:
+        response = client.post(
+            f"/api/reservas/{reserva.id}/cancelar",
+            json={"motivo": motivo},
+            headers=admin_headers,
+        )
+        assert response.status_code == 422, f"motivo={motivo!r} dio {response.status_code}"
+        assert response.json()["code"] == "VALIDACION"
+
+
+def test_cancelar_motivo_valido_con_espacios_se_recorta(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Motivo con espacios al inicio/fin se guarda recortado."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1204, estado=EstadoReserva.PENDIENTE)
+    response = client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "  motivo valido  "},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["motivoCancelacion"] == "motivo valido"
+
+
+def test_cancelar_con_pagos_vigentes_no_toca_pagos(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Cancelar cambia el estado y NO toca los pagos asociados."""
+    from tests.factories import crear_pago
+
+    reserva, _, _, usuario = _crear(
+        db=db_session, numero=1205, estado=EstadoReserva.CONFIRMADA
+    )
+    # Crear un pago asociado
+    pago = crear_pago(
+        db_session, reserva=reserva, usuario=usuario, monto=Decimal("50000.00")
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "Cancelacion con pago"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CANCELADA"
+    # El pago debe seguir existiendo sin cambios
+    pago_refrescado = db_session.get(type(pago), pago.id)
+    assert pago_refrescado is not None
+    assert pago_refrescado.anulado is False
+
+
+def test_cancelar_desde_check_in_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Cancelar desde CHECK_IN da TRANSICION_INVALIDA."""
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1206, estado=EstadoReserva.CHECK_IN
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "Intento invalido"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+    assert "CHECK_IN" in response.json()["detail"]
+
+
+def test_cancelar_reserva_inexistente(
+    client: TestClient, admin_headers: dict[str, str], hoy_fijo
+) -> None:
+    response = client.post(
+        "/api/reservas/9999/cancelar", json={"motivo": "No existe"}, headers=admin_headers
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "RESERVA_NO_ENCONTRADA"
+
+
+def test_cancelar_libera_habitacion_para_nueva_reserva(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Tras cancelar, la habitacion queda libre y permite crear otra reserva en el mismo rango."""
+    huesped = crear_huesped(db_session)
+    habitacion = crear_habitacion(db_session, numero=1207)
+    reserva = client.post(
+        "/api/reservas", json=_payload(huesped.id, habitacion.id), headers=admin_headers
+    ).json()
+
+    # Cancelar
+    response = client.post(
+        f"/api/reservas/{reserva['id']}/cancelar",
+        json={"motivo": "Libera la habitacion"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["estado"] == "CANCELADA"
+
+    # Ahora se puede crear otra reserva en el mismo rango
+    nueva = client.post(
+        "/api/reservas", json=_payload(huesped.id, habitacion.id), headers=admin_headers
+    )
+    assert nueva.status_code == 201
+
+
+# --- No-Show -----------------------------------------------------------------
+
+
+def test_no_show_reserva_confirmada(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1301,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY,
+        salida=HOY + timedelta(days=2),
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/no-show", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "NO_SHOW"
+
+
+def test_no_show_antes_de_fecha_entrada_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """No-show antes de la fecha de entrada da NO_SHOW_ANTES_DE_FECHA."""
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1302,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY + timedelta(days=2),
+        salida=HOY + timedelta(days=4),
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/no-show", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "NO_SHOW_ANTES_DE_FECHA"
+
+
+def test_no_show_desde_pendiente_falla_transicion(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """No-show desde PENDIENTE da TRANSICION_INVALIDA (validación de transición ANTES que fecha)."""
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1303,
+        estado=EstadoReserva.PENDIENTE,
+        entrada=HOY,
+        salida=HOY + timedelta(days=2),
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/no-show", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+    assert "PENDIENTE" in response.json()["detail"]
+    assert "NO_SHOW" in response.json()["detail"]
+
+
+def test_no_show_en_el_mismo_dia_de_entrada(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """No-show el mismo día de la entrada SÍ se permite."""
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1304,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY,
+        salida=HOY + timedelta(days=2),
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/no-show", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "NO_SHOW"
+
+
+def test_no_show_despues_de_fecha_entrada(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """No-show después de la fecha de entrada SÍ se permite."""
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1305,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY - timedelta(days=2),
+        salida=HOY,
+    )
+    response = client.post(
+        f"/api/reservas/{reserva.id}/no-show", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "NO_SHOW"
+
+
+def test_no_show_reserva_inexistente(
+    client: TestClient, admin_headers: dict[str, str], hoy_fijo
+) -> None:
+    response = client.post("/api/reservas/9999/no-show", headers=admin_headers)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "RESERVA_NO_ENCONTRADA"
+
+
+# --- Auditoría de cambios de estado ------------------------------------------
+
+
+def test_auditoria_al_confirmar(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1401, estado=EstadoReserva.PENDIENTE)
+    client.post(f"/api/reservas/{reserva.id}/confirmar", headers=admin_headers)
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["estado_anterior"] == "PENDIENTE"
+    assert detalle["estado_nuevo"] == "CONFIRMADA"
+    assert "motivo" not in str(detalle)  # El motivo no está en auditoría de confirmar
+
+
+def test_auditoria_al_cancelar(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1402, estado=EstadoReserva.PENDIENTE)
+    client.post(
+        f"/api/reservas/{reserva.id}/cancelar",
+        json={"motivo": "Motivo en auditoria"},
+        headers=admin_headers,
+    )
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["estado_anterior"] == "PENDIENTE"
+    assert detalle["estado_nuevo"] == "CANCELADA"
+    # El motivo no se incluye en el detalle de auditoría (solo estados)
+
+
+def test_auditoria_al_no_show(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1403,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY,
+        salida=HOY + timedelta(days=2),
+    )
+    client.post(f"/api/reservas/{reserva.id}/no-show", headers=admin_headers)
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["estado_anterior"] == "CONFIRMADA"
+    assert detalle["estado_nuevo"] == "NO_SHOW"
