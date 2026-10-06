@@ -1,15 +1,22 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.deps import require_roles
 from app.core.errors import ConflictoError, NoEncontradoError
-from app.models import RolUsuario, Usuario
+from app.models import (
+    EstadoHabitacion,
+    EstadoLimpieza,
+    RolUsuario,
+    TipoHabitacion,
+    Usuario,
+)
 from app.schemas.habitacion import (
     HabitacionCreate,
     HabitacionEstado,
+    HabitacionLimpieza,
     HabitacionRead,
     HabitacionUpdate,
 )
@@ -24,18 +31,30 @@ solo_administradores = require_roles(RolUsuario.ADMIN)
     "",
     response_model=list[HabitacionRead],
     summary="Listar habitaciones",
-    description="Lista las habitaciones disponibles para la gestion hotelera.",
+    description=(
+        "Lista las habitaciones de la gestion hotelera, con filtros opcionales "
+        "por estado, tipo y limpieza. Devuelve siempre un arreglo completo."
+    ),
     responses={
         200: {"description": "Listado de habitaciones"},
         401: {"description": "Token de acceso invalido o ausente"},
         403: {"description": "Rol sin permisos para consultar habitaciones"},
+        422: {"description": "Filtro invalido (estado, tipo o limpieza)"},
     },
 )
 def listar_habitaciones(
     db: Annotated[Session, Depends(get_db)],
     usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+    estado: Annotated[EstadoHabitacion | None, Query()] = None,
+    tipo: Annotated[TipoHabitacion | None, Query()] = None,
+    limpieza: Annotated[EstadoLimpieza | None, Query()] = None,
 ) -> list[HabitacionRead]:
-    return habitacion_service.listar_habitaciones(db)
+    return habitacion_service.listar_habitaciones(
+        db,
+        estado=estado,
+        tipo=tipo,
+        limpieza=limpieza,
+    )
 
 
 @router.get(
@@ -138,6 +157,39 @@ def actualizar_estado_habitacion(
             db,
             habitacion_id,
             datos.estado,
+        )
+    except habitacion_service.HabitacionNoEncontradaError as error:
+        raise NoEncontradoError(str(error)) from error
+
+
+@router.patch(
+    "/{habitacion_id}/limpieza",
+    response_model=HabitacionRead,
+    summary="Actualizar limpieza de habitacion",
+    description=(
+        "Cambia el estado de limpieza de una habitacion. Se permite aunque la "
+        "habitacion este OCUPADA."
+    ),
+    responses={
+        200: {"description": "Limpieza actualizada"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para cambiar la limpieza"},
+        404: {"description": "Habitacion no encontrada"},
+        422: {"description": "Estado de limpieza invalido"},
+    },
+)
+def actualizar_limpieza_habitacion(
+    habitacion_id: int,
+    datos: HabitacionLimpieza,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+) -> HabitacionRead:
+    try:
+        return habitacion_service.actualizar_limpieza(
+            db,
+            habitacion_id,
+            datos.limpieza,
+            usuario.id,
         )
     except habitacion_service.HabitacionNoEncontradaError as error:
         raise NoEncontradoError(str(error)) from error

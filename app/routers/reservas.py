@@ -11,6 +11,7 @@ from app.core.tiempo import obtener_hoy
 from app.models import EstadoReserva, RolUsuario, TipoHabitacion, Usuario
 from app.schemas.reserva import (
     CancelarReservaRequest,
+    ExtenderReservaRequest,
     HabitacionResumen,
     ReservaCreate,
     ReservaFiltros,
@@ -334,3 +335,96 @@ def no_show_reserva(
     hoy: Annotated[date, Depends(obtener_hoy)],
 ) -> ReservaRead:
     return reserva_service.no_show_reserva(db, reserva_id, usuario.id, hoy)
+
+
+@router.post(
+    "/{reserva_id}/check-in",
+    response_model=ReservaRead,
+    summary="Registrar check-in",
+    description=(
+        "Cambia una reserva de CONFIRMADA a CHECK_IN y deja la habitacion OCUPADA. "
+        "La fecha de entrada no puede ser posterior a hoy y la estancia no puede "
+        "estar vencida. La habitacion debe estar DISPONIBLE y LIMPIA."
+    ),
+    responses={
+        200: {"description": "Reserva en CHECK_IN"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para registrar check-in"},
+        404: {"description": "Reserva no encontrada"},
+        409: {
+            "description": (
+                "Transicion invalida (la reserva no esta CONFIRMADA), check-in "
+                "antes de la fecha de entrada, estancia vencida o habitacion "
+                "no lista (sucia, ocupada o en mantenimiento)"
+            )
+        },
+    },
+)
+def check_in_reserva(
+    reserva_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+    hoy: Annotated[date, Depends(obtener_hoy)],
+) -> ReservaRead:
+    return reserva_service.check_in_reserva(db, reserva_id, usuario.id, hoy)
+
+
+@router.post(
+    "/{reserva_id}/check-out",
+    response_model=ReservaRead,
+    summary="Registrar check-out",
+    description=(
+        "Cambia una reserva de CHECK_IN a CHECK_OUT y deja la habitacion SUCIA. "
+        "No cambia la fecha de salida ni el total: lo facturado sigue siendo lo "
+        "reservado."
+    ),
+    responses={
+        200: {"description": "Reserva en CHECK_OUT"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para registrar check-out"},
+        404: {"description": "Reserva no encontrada"},
+        409: {"description": "Transicion invalida (la reserva no esta en CHECK_IN)"},
+    },
+)
+def check_out_reserva(
+    reserva_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+) -> ReservaRead:
+    return reserva_service.check_out_reserva(db, reserva_id, usuario.id)
+
+
+@router.post(
+    "/{reserva_id}/extender",
+    response_model=ReservaRead,
+    summary="Extender estancia",
+    description=(
+        "Alarga la estancia de una reserva en CHECK_IN. La nueva fecha de salida "
+        "debe ser posterior a la actual, no puede solaparse con otra reserva de la "
+        "misma habitacion y recalcula el total como noches por el precio noche "
+        "aplicado, sin cambiar el precio congelado. Por decision de negocio no "
+        "valida el estado de la habitacion (puede seguir en mantenimiento mientras "
+        "el huesped esta alojado) ni que la fecha de salida actual siga en el "
+        "futuro: una estancia cuya salida ya paso tambien puede extenderse."
+    ),
+    responses={
+        200: {"description": "Estancia extendida"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para extender reservas"},
+        404: {"description": "Reserva no encontrada"},
+        409: {
+            "description": (
+                "Transicion invalida (la reserva no esta en CHECK_IN), rango de "
+                "fechas invalido o solapamiento con otra reserva"
+            )
+        },
+        422: {"description": "Nueva fecha de salida invalida"},
+    },
+)
+def extender_reserva(
+    reserva_id: int,
+    datos: ExtenderReservaRequest,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+) -> ReservaRead:
+    return reserva_service.extender_reserva(db, reserva_id, datos, usuario.id)

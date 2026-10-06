@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.core.tiempo import obtener_hoy
 from app.main import app
-from app.models import EstadoHabitacion, EstadoReserva, Reserva, TipoHabitacion
+from app.models import (
+    EstadoHabitacion,
+    EstadoReserva,
+    Habitacion,
+    Reserva,
+    TipoHabitacion,
+)
 from app.routers.reservas import router
 from app.schemas.reserva import CancelarReservaRequest
 from app.services import auditoria_service, reserva_service
@@ -1742,3 +1748,661 @@ def test_editar_cambio_de_habitacion_bloquea_en_orden_ascendente(
     assert response.json()["habitacion"]["id"] == destino.id
     # Ambas habitaciones se bloquean, y en orden ascendente por id.
     assert orden_bloqueos == sorted({destino.id, origen.id})
+
+
+# --- Check-in, extender y check-out --------------------------------------------
+
+
+def _instante(valor: str) -> datetime:
+    """Normaliza un ISO 8601 con o sin zona horaria a UTC.
+
+    SQLite guarda las fechas sin zona, así que sin esta normalización no se puede
+    comparar `check_in_real` con `check_out_real`.
+    """
+    momento = datetime.fromisoformat(valor)
+    if momento.tzinfo is None:
+        return momento.replace(tzinfo=UTC)
+    return momento.astimezone(UTC)
+
+
+def _habitacion(
+    client: TestClient, habitacion_id: int, headers: dict[str, str]
+) -> dict[str, object]:
+    """Lee la habitación por la API para comprobar su estado y su limpieza."""
+    response = client.get(f"/api/habitaciones/{habitacion_id}", headers=headers)
+    assert response.status_code == 200
+    return response.json()
+
+
+def test_flujo_completo_confirmar_check_in_extender_check_out(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, habitacion, _ = _crear(
+        db=db_session,
+        numero=1601,
+        estado=EstadoReserva.PENDIENTE,
+        entrada=HOY,
+        salida=HOY + timedelta(days=3),
+    )
+
+    confirmada = client.post(
+        f"/api/reservas/{reserva.id}/confirmar", headers=admin_headers
+    )
+    assert confirmada.status_code == 200
+    assert confirmada.json()["estado"] == "CONFIRMADA"
+
+    check_in = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+    assert check_in.status_code == 200
+    assert check_in.json()["estado"] == "CHECK_IN"
+    assert check_in.json()["checkInReal"] is not None
+    assert _habitacion(client, habitacion.id, admin_headers)["estado"] == "OCUPADA"
+
+    extendida = client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=5)).isoformat()},
+        headers=admin_headers,
+    )
+    assert extendida.status_code == 200
+    assert extendida.json()["fechaSalida"] == (HOY + timedelta(days=5)).isoformat()
+    # 5 noches (nuevaFechaSalida - fechaEntrada) por 150000.
+    assert extendida.json()["totalEstimado"] == 750000.0
+
+    check_out = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+    assert check_out.status_code == 200
+    datos = check_out.json()
+    assert datos["estado"] == "CHECK_OUT"
+    assert datos["fechaSalida"] == (HOY + timedelta(days=5)).isoformat()
+    assert datos["checkInReal"] is not None
+    assert datos["checkOutReal"] is not None
+    assert _instante(datos["checkOutReal"]) >= _instante(datos["checkInReal"])
+
+    habitacion_final = _habitacion(client, habitacion.id, admin_headers)
+    assert habitacion_final["estado"] == "DISPONIBLE"
+    assert habitacion_final["limpieza"] == "SUCIA"
+
+
+def test_checkin_antes_de_la_fecha_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1611,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY + timedelta(days=2),
+        salida=HOY + timedelta(days=5),
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "CHECKIN_ANTES_DE_FECHA"
+
+
+def test_checkin_con_estancia_vencida_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1612,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY - timedelta(days=5),
+        salida=HOY - timedelta(days=1),
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "ESTANCIA_VENCIDA"
+
+
+def test_checkin_de_reserva_no_confirmada_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(db=db_session, numero=1613, estado=EstadoReserva.PENDIENTE)
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+
+
+def test_checkin_con_habitacion_sucia_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1614, estado=EstadoReserva.CONFIRMADA
+    )
+    limpia = client.patch(
+        f"/api/habitaciones/{habitacion.id}/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=admin_headers,
+    )
+    assert limpia.status_code == 200
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "HABITACION_NO_LISTA"
+    assert "sucia" in response.json()["detail"]
+
+
+def test_checkin_con_habitacion_ocupada_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1615, estado=EstadoReserva.CONFIRMADA
+    )
+    client.patch(
+        f"/api/habitaciones/{habitacion.id}/estado",
+        json={"estado": "OCUPADA"},
+        headers=admin_headers,
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "HABITACION_NO_LISTA"
+    assert "ocupada" in response.json()["detail"]
+
+
+def test_checkin_con_habitacion_en_mantenimiento_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1616, estado=EstadoReserva.CONFIRMADA
+    )
+    client.patch(
+        f"/api/habitaciones/{habitacion.id}/estado",
+        json={"estado": "MANTENIMIENTO"},
+        headers=admin_headers,
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "HABITACION_NO_LISTA"
+    assert "mantenimiento" in response.json()["detail"]
+
+
+def test_checkout_de_reserva_sin_check_in_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1617, estado=EstadoReserva.CONFIRMADA
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+
+
+def test_checkout_deja_habitacion_disponible_y_sucia(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1618, estado=EstadoReserva.CONFIRMADA
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    datos = response.json()
+    assert datos["estado"] == "CHECK_OUT"
+    # No toca lo reservado: la fecha de salida y el total siguen igual.
+    assert datos["fechaSalida"] == (HOY + timedelta(days=3)).isoformat()
+    assert datos["totalEstimado"] == 450000.0
+    assert datos["checkInReal"] is not None
+    assert datos["checkOutReal"] is not None
+    assert _instante(datos["checkOutReal"]) >= _instante(datos["checkInReal"])
+
+    habitacion_final = _habitacion(client, habitacion.id, admin_headers)
+    assert habitacion_final["estado"] == "DISPONIBLE"
+    assert habitacion_final["limpieza"] == "SUCIA"
+
+
+def test_checkout_en_mantenimiento_no_cambia_el_estado_de_la_habitacion(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """La habitación en MANTENIMIENTO se respeta en el check-out: solo queda SUCIA."""
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1619, estado=EstadoReserva.CONFIRMADA
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+    client.patch(
+        f"/api/habitaciones/{habitacion.id}/estado",
+        json={"estado": "MANTENIMIENTO"},
+        headers=admin_headers,
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    habitacion_final = _habitacion(client, habitacion.id, admin_headers)
+    assert habitacion_final["estado"] == "MANTENIMIENTO"
+    assert habitacion_final["limpieza"] == "SUCIA"
+
+
+def test_checkout_anticipado_libera_las_noches_no_usadas(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Tras un check-out anticipado, reservar las noches no usadas sigue siendo válido."""
+    huesped = crear_huesped(db_session, numero_documento="8001")
+    habitacion = crear_habitacion(db_session, numero=1620)
+    reserva = client.post(
+        "/api/reservas",
+        json=_payload(huesped.id, habitacion.id, salida=HOY + timedelta(days=4)),
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/reservas/{reserva['id']}/confirmar", headers=admin_headers)
+    client.post(f"/api/reservas/{reserva['id']}/check-in", headers=admin_headers)
+    check_out = client.post(
+        f"/api/reservas/{reserva['id']}/check-out", headers=admin_headers
+    )
+    assert check_out.status_code == 200
+
+    nueva = client.post(
+        "/api/reservas",
+        json=_payload(
+            huesped.id,
+            habitacion.id,
+            entrada=HOY + timedelta(days=3),
+            salida=HOY + timedelta(days=5),
+        ),
+        headers=admin_headers,
+    )
+
+    assert nueva.status_code == 201
+
+
+def test_habitacion_sucia_bloquea_el_siguiente_check_in(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Una habitación sucia no admite check-in hasta pasarla a LIMPIA."""
+    huesped = crear_huesped(db_session, numero_documento="8002")
+    habitacion = crear_habitacion(db_session, numero=1621)
+    primera = client.post(
+        "/api/reservas",
+        json=_payload(huesped.id, habitacion.id),
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/reservas/{primera['id']}/confirmar", headers=admin_headers)
+    client.post(f"/api/reservas/{primera['id']}/check-in", headers=admin_headers)
+    client.post(f"/api/reservas/{primera['id']}/check-out", headers=admin_headers)
+    assert _habitacion(client, habitacion.id, admin_headers)["limpieza"] == "SUCIA"
+
+    segunda = client.post(
+        "/api/reservas",
+        json=_payload(
+            huesped.id, habitacion.id, salida=HOY + timedelta(days=2)
+        ),
+        headers=admin_headers,
+    ).json()
+    client.post(f"/api/reservas/{segunda['id']}/confirmar", headers=admin_headers)
+    bloqueado = client.post(
+        f"/api/reservas/{segunda['id']}/check-in", headers=admin_headers
+    )
+
+    assert bloqueado.status_code == 409
+    assert bloqueado.json()["code"] == "HABITACION_NO_LISTA"
+    assert "sucia" in bloqueado.json()["detail"]
+
+    limpia = client.patch(
+        f"/api/habitaciones/{habitacion.id}/limpieza",
+        json={"limpieza": "LIMPIA"},
+        headers=admin_headers,
+    )
+    assert limpia.status_code == 200
+
+    permitido = client.post(
+        f"/api/reservas/{segunda['id']}/check-in", headers=admin_headers
+    )
+    assert permitido.status_code == 200
+
+
+def test_extender_recalcula_el_total(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1622,
+        estado=EstadoReserva.CHECK_IN,
+        entrada=HOY,
+        salida=HOY + timedelta(days=3),
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=6)).isoformat()},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["fechaSalida"] == (HOY + timedelta(days=6)).isoformat()
+    # 6 noches x 150000, con el precio congelado sin cambios.
+    assert response.json()["totalEstimado"] == 900000.0
+    assert response.json()["precioNocheAplicado"] == 150000.0
+
+
+def test_extender_fecha_no_posterior_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1623,
+        estado=EstadoReserva.CHECK_IN,
+        entrada=HOY,
+        salida=HOY + timedelta(days=3),
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=3)).isoformat()},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RANGO_FECHAS_INVALIDO"
+
+
+def test_extender_con_solapamiento_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    habitacion = crear_habitacion(db_session, numero=1624)
+    huesped = crear_huesped(db_session, numero_documento="8003")
+    reserva = crear_reserva(
+        db_session,
+        huesped=huesped,
+        habitacion=habitacion,
+        usuario=crear_usuario(db_session, username="u1624", email="u1624@ex.com"),
+        codigo="RES-2026-001624",
+        fecha_entrada=HOY,
+        fecha_salida=HOY + timedelta(days=3),
+        estado=EstadoReserva.CHECK_IN,
+    )
+    # Otra reserva de la misma habitación, ya cubierta por ESTADOS_QUE_BLOQUEAN.
+    creada = client.post(
+        "/api/reservas",
+        json=_payload(
+            huesped.id,
+            habitacion.id,
+            entrada=HOY + timedelta(days=4),
+            salida=HOY + timedelta(days=6),
+        ),
+        headers=admin_headers,
+    )
+    assert creada.status_code == 201
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=5)).isoformat()},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RESERVA_SOLAPADA"
+
+
+def test_extender_fuera_de_check_in_falla(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1625, estado=EstadoReserva.CONFIRMADA
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=6)).isoformat()},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+
+
+def test_auditoria_al_check_in(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1631, estado=EstadoReserva.CONFIRMADA
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "CHECK_IN"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["estado_anterior"] == "CONFIRMADA"
+    assert detalle["estado_nuevo"] == "CHECK_IN"
+    # El cambio afecta también a la habitación y queda en el mismo registro.
+    assert detalle["habitacion_estado_anterior"] == "DISPONIBLE"
+    assert detalle["habitacion_estado_nuevo"] == "OCUPADA"
+    assert detalle["limpieza_anterior"] == "LIMPIA"
+    assert detalle["limpieza_nueva"] == "LIMPIA"
+
+
+def test_auditoria_al_check_out(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1632, estado=EstadoReserva.CONFIRMADA
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+    client.post(f"/api/reservas/{reserva.id}/check-out", headers=admin_headers)
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "CHECK_OUT"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["estado_anterior"] == "CHECK_IN"
+    assert detalle["estado_nuevo"] == "CHECK_OUT"
+    assert detalle["habitacion_estado_anterior"] == "OCUPADA"
+    assert detalle["habitacion_estado_nuevo"] == "DISPONIBLE"
+    assert detalle["limpieza_anterior"] == "LIMPIA"
+    assert detalle["limpieza_nueva"] == "SUCIA"
+
+
+def test_auditoria_al_extender(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1633,
+        estado=EstadoReserva.CHECK_IN,
+        entrada=HOY,
+        salida=HOY + timedelta(days=3),
+    )
+    client.post(
+        f"/api/reservas/{reserva.id}/extender",
+        json={"nuevaFechaSalida": (HOY + timedelta(days=5)).isoformat()},
+        headers=admin_headers,
+    )
+
+    response = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "EXTENDER"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    detalle = response.json()["items"][0]["detalle"]
+    assert detalle["fecha_salida_anterior"] == (HOY + timedelta(days=3)).isoformat()
+    assert detalle["fecha_salida_nueva"] == (HOY + timedelta(days=5)).isoformat()
+    assert Decimal(detalle["total_anterior"]) == Decimal("450000")
+    assert Decimal(detalle["total_nuevo"]) == Decimal("750000")
+
+
+def test_check_in_atribuido_al_recepcion_distinto_del_creador(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    recepcion_headers: dict[str, str],
+    recepcion_user,
+    db_session: Session,
+    hoy_fijo,
+) -> None:
+    """La auditoría del check-in registra a quien lo ejecuta, no al creador."""
+    reserva, _, _, creador = _crear(
+        db=db_session, numero=1634, estado=EstadoReserva.CONFIRMADA
+    )
+    assert recepcion_user.id != creador.id, "el ejecutor debe ser distinto del creador"
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=recepcion_headers
+    )
+    assert response.status_code == 200
+
+    auditoria = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "CHECK_IN"},
+        headers=admin_headers,
+    )
+    assert auditoria.status_code == 200
+    assert auditoria.json()["total"] == 1
+
+    registro = auditoria.json()["items"][0]
+    assert registro["usuarioId"] == recepcion_user.id
+    assert registro["usuarioId"] != creador.id
+    assert registro["detalle"]["estado_nuevo"] == "CHECK_IN"
+
+
+def test_si_falla_la_auditoria_el_check_in_se_revirta(
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """Si el registro de auditoría falla, ni la reserva ni la habitación cambian."""
+    reserva, _, habitacion, _ = _crear(
+        db=db_session, numero=1635, estado=EstadoReserva.CONFIRMADA
+    )
+
+    def _falla(*args, **kwargs):
+        raise RuntimeError("falla el registro de auditoria")
+
+    monkeypatch.setattr(auditoria_service, "registrar_auditoria", _falla)
+
+    with pytest.raises(RuntimeError, match="falla el registro de auditoria"):
+        reserva_service.check_in_reserva(db_session, reserva.id, 1, HOY)
+
+    assert db_session.get(Reserva, reserva.id).estado == EstadoReserva.CONFIRMADA
+    assert db_session.get(Habitacion, habitacion.id).estado is EstadoHabitacion.DISPONIBLE
+
+
+def test_check_in_rechaza_si_otra_peticion_cambio_el_estado(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """La transición se valida sobre el estado ya bloqueado y recargado.
+
+    Se simula que otra petición cancela la reserva justo después de la lectura
+    sin bloqueo: si la validación se hiciera antes del bloqueo, el check-in se
+    aprobaría sobre un estado viejo. SQLite ignora FOR UPDATE, así que se
+    comprueba el orden lógico, no la concurrencia real.
+    """
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1637, estado=EstadoReserva.CONFIRMADA
+    )
+    _simular_cambio_de_estado_por_otra_peticion(
+        monkeypatch, reserva.id, EstadoReserva.CANCELADA
+    )
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=admin_headers
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "TRANSICION_INVALIDA"
+
+
+def test_recepcion_puede_registrar_la_estancia(
+    client: TestClient,
+    recepcion_headers: dict[str, str],
+    db_session: Session,
+    hoy_fijo,
+) -> None:
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1636, estado=EstadoReserva.CONFIRMADA
+    )
+
+    check_in = client.post(
+        f"/api/reservas/{reserva.id}/check-in", headers=recepcion_headers
+    )
+    check_out = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=recepcion_headers
+    )
+
+    assert check_in.status_code == 200
+    assert check_out.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "ruta,payload",
+    [
+        ("/api/reservas/1/check-in", None),
+        ("/api/reservas/1/check-out", None),
+        ("/api/reservas/1/extender", {"nuevaFechaSalida": "2026-10-05"}),
+    ],
+)
+def test_rutas_de_estancia_requieren_token(
+    client: TestClient, ruta: str, payload: dict[str, object] | None
+) -> None:
+    response = client.post(ruta, json=payload)
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.parametrize(
+    "ruta,payload",
+    [
+        ("/api/reservas/9999/check-in", None),
+        ("/api/reservas/9999/check-out", None),
+        ("/api/reservas/9999/extender", {"nuevaFechaSalida": "2026-10-05"}),
+    ],
+)
+def test_rutas_de_estancia_devuelven_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    ruta: str,
+    payload: dict[str, object] | None,
+) -> None:
+    response = client.post(ruta, json=payload, headers=admin_headers)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "RESERVA_NO_ENCONTRADA"

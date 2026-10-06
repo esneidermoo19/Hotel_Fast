@@ -49,6 +49,10 @@ class CancelarReservaRequest(CamelCaseSchema):
     motivo: MotivoCancelacion
 
 
+class ExtenderReservaRequest(CamelCaseSchema):
+    nueva_fecha_salida: date
+
+
 class ReservaRead(CamelCaseSchema):
     id: int
     codigo: str

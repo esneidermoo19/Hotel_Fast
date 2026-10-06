@@ -183,3 +183,210 @@ def test_rutas_requieren_token(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
+
+
+# --- Listado con filtros -------------------------------------------------------
+
+
+def test_listar_sin_filtros_sigue_devolviendo_todas_las_habitaciones(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    """El GET sin filtros devuelve todas, con el formato de antes y el campo limpieza."""
+    numeros = [701, 702, 703]
+    creadas = [
+        client.post(
+            "/api/habitaciones",
+            json=habitacion_payload(numero),
+            headers=admin_headers,
+        )
+        for numero in numeros
+    ]
+    assert [respuesta.status_code for respuesta in creadas] == [201, 201, 201]
+
+    response = client.get("/api/habitaciones", headers=admin_headers)
+
+    assert response.status_code == 200
+    datos = response.json()
+    assert [item["numero"] for item in datos] == numeros
+
+    campos_antes = {
+        "id",
+        "numero",
+        "tipo",
+        "capacidad",
+        "precioPorNoche",
+        "estado",
+        "descripcion",
+        "createdAt",
+        "updatedAt",
+    }
+    for item in datos:
+        assert set(item) == campos_antes | {"limpieza"}
+        assert item["limpieza"] in {"LIMPIA", "SUCIA"}
+        assert isinstance(item["precioPorNoche"], float)
+
+
+def test_filtros_de_habitaciones(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    doble = client.post(
+        "/api/habitaciones", json=habitacion_payload(711, tipo="DOBLE"), headers=admin_headers
+    ).json()
+    suite = client.post(
+        "/api/habitaciones",
+        json=habitacion_payload(712, tipo="SUITE", estado="OCUPADA"),
+        headers=admin_headers,
+    ).json()
+    client.patch(
+        f"/api/habitaciones/{suite['id']}/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=admin_headers,
+    )
+    simple = client.post(
+        "/api/habitaciones",
+        json=habitacion_payload(713, tipo="SIMPLE", estado="MANTENIMIENTO"),
+        headers=admin_headers,
+    ).json()
+
+    def ids(params: dict[str, str]) -> list[int]:
+        respuesta = client.get("/api/habitaciones", params=params, headers=admin_headers)
+        assert respuesta.status_code == 200
+        return [item["id"] for item in respuesta.json()]
+
+    assert ids({}) == [doble["id"], suite["id"], simple["id"]]
+    assert ids({"estado": "OCUPADA"}) == [suite["id"]]
+    assert ids({"estado": "MANTENIMIENTO"}) == [simple["id"]]
+    assert ids({"tipo": "SUITE"}) == [suite["id"]]
+    assert ids({"limpieza": "SUCIA"}) == [suite["id"]]
+    assert ids({"limpieza": "LIMPIA"}) == [doble["id"], simple["id"]]
+    assert ids({"tipo": "DOBLE", "limpieza": "LIMPIA"}) == [doble["id"]]
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        {"estado": "OTRO"},
+        {"tipo": "OTRO"},
+        {"limpieza": "OTRO"},
+    ],
+)
+def test_filtro_invalido_devuelve_422(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    params: dict[str, str],
+) -> None:
+    response = client.get("/api/habitaciones", params=params, headers=admin_headers)
+
+    assert response.status_code == 422
+
+
+# --- Limpieza ------------------------------------------------------------------
+
+
+def test_limpieza_cambia_el_estado_y_se_audita(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    recepcion_headers: dict[str, str],
+    recepcion_user,
+) -> None:
+    creado = client.post(
+        "/api/habitaciones", json=habitacion_payload(721), headers=admin_headers
+    ).json()
+    assert creado["limpieza"] == "LIMPIA"
+
+    sucia = client.patch(
+        f"/api/habitaciones/{creado['id']}/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=recepcion_headers,
+    )
+    assert sucia.status_code == 200
+    assert sucia.json()["limpieza"] == "SUCIA"
+
+    limpia = client.patch(
+        f"/api/habitaciones/{creado['id']}/limpieza",
+        json={"limpieza": "LIMPIA"},
+        headers=recepcion_headers,
+    )
+    assert limpia.status_code == 200
+    assert limpia.json()["limpieza"] == "LIMPIA"
+
+    auditoria = client.get(
+        "/api/auditoria",
+        params={"entidad": "Habitacion", "accion": "LIMPIEZA"},
+        headers=admin_headers,
+    )
+    assert auditoria.status_code == 200
+    assert auditoria.json()["total"] == 2
+
+    # El listado va del más reciente al más antiguo.
+    detalle = auditoria.json()["items"][0]["detalle"]
+    assert auditoria.json()["items"][0]["usuarioId"] == recepcion_user.id
+    assert detalle["limpieza_anterior"] == "SUCIA"
+    assert detalle["limpieza_nueva"] == "LIMPIA"
+
+    detalle = auditoria.json()["items"][1]["detalle"]
+    assert detalle["limpieza_anterior"] == "LIMPIA"
+    assert detalle["limpieza_nueva"] == "SUCIA"
+
+
+def test_limpieza_se_permite_con_habitacion_ocupada(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    creado = client.post(
+        "/api/habitaciones",
+        json=habitacion_payload(731, estado="OCUPADA"),
+        headers=admin_headers,
+    ).json()
+
+    response = client.patch(
+        f"/api/habitaciones/{creado['id']}/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["estado"] == "OCUPADA"
+    assert response.json()["limpieza"] == "SUCIA"
+
+
+def test_limpieza_habitacion_inexistente_devuelve_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    response = client.patch(
+        "/api/habitaciones/9999/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 404
+    assert isinstance(response.json()["detail"], str)
+
+
+def test_limpieza_valor_invalido_devuelve_422(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    creado = client.post(
+        "/api/habitaciones", json=habitacion_payload(741), headers=admin_headers
+    ).json()
+
+    response = client.patch(
+        f"/api/habitaciones/{creado['id']}/limpieza",
+        json={"limpieza": "GARABATO"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_limpieza_requiere_token(client: TestClient) -> None:
+    response = client.patch(
+        "/api/habitaciones/1/limpieza", json={"limpieza": "SUCIA"}
+    )
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
