@@ -3,12 +3,14 @@ from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.tiempo import obtener_hoy
 from app.main import app
 from app.models import EstadoHabitacion, EstadoReserva, Reserva, TipoHabitacion
 from app.routers.reservas import router
+from app.schemas.reserva import CancelarReservaRequest
 from app.services import auditoria_service, reserva_service
 from tests.factories import crear_habitacion, crear_huesped, crear_reserva, crear_usuario
 
@@ -1561,3 +1563,101 @@ def test_si_falla_la_auditoria_el_estado_de_la_reserva_no_cambia(
     # cambio quedaría pendiente en el identity map y se volvería a persistir.
     assert reserva.estado == EstadoReserva.PENDIENTE
     assert db_session.get(Reserva, reserva.id).estado == EstadoReserva.PENDIENTE
+
+
+# --- Orden de bloqueo: la transición se valida sobre el estado bloqueado ---------
+
+
+def _simular_cambio_de_estado_por_otra_peticion(
+    monkeypatch,
+    reserva_id: int,
+    destino: EstadoReserva = EstadoReserva.CANCELADA,
+) -> None:
+    """Hace que "otra petición" cambie el estado justo antes de bloquear la habitación.
+
+    El UPDATE se inyecta dentro de `_habitacion_para_reserva`, que es el paso (b)
+    del orden de bloqueo, así que el estado cambia entre la lectura sin bloqueo (a)
+    y la recarga con SELECT FOR UPDATE (c).
+
+    Se usa `synchronize_session=False` a propósito: el objeto queda con el estado
+    viejo en memoria, de modo que el test solo pasa si la recarga con
+    `populate_existing` es la que trae el estado nuevo. No se prueba concurrencia
+    real porque SQLite ignora FOR UPDATE; se comprueba el orden lógico.
+    """
+    original = reserva_service._habitacion_para_reserva
+
+    def _interceptada(session: Session, habitacion_id: int):
+        session.execute(
+            update(Reserva)
+            .where(Reserva.id == reserva_id)
+            .values(estado=destino)
+            .execution_options(synchronize_session=False)
+        )
+        return original(session, habitacion_id)
+
+    monkeypatch.setattr(reserva_service, "_habitacion_para_reserva", _interceptada)
+
+
+def test_confirmar_rechaza_si_otra_peticion_cambio_el_estado(
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """Confirmar valida el estado recargado, no el leído antes de bloquear."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1601, estado=EstadoReserva.PENDIENTE)
+    _simular_cambio_de_estado_por_otra_peticion(monkeypatch, reserva.id)
+
+    with pytest.raises(reserva_service.TransicionInvalidaError) as excinfo:
+        reserva_service.confirmar_reserva(db_session, reserva.id, 1, HOY)
+
+    assert excinfo.value.codigo == "TRANSICION_INVALIDA"
+    assert "CANCELADA" in str(excinfo.value)
+    db_session.expire_all()
+    assert reserva.estado == EstadoReserva.CANCELADA
+
+
+def test_cancelar_rechaza_si_otra_peticion_cambio_el_estado(
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """Cancelar valida el estado recargado, no el leído antes de bloquear."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1602, estado=EstadoReserva.PENDIENTE)
+    _simular_cambio_de_estado_por_otra_peticion(monkeypatch, reserva.id)
+
+    with pytest.raises(reserva_service.TransicionInvalidaError) as excinfo:
+        reserva_service.cancelar_reserva(
+            db_session,
+            reserva.id,
+            CancelarReservaRequest(motivo="motivo valido"),
+            1,
+        )
+
+    assert excinfo.value.codigo == "TRANSICION_INVALIDA"
+    assert "CANCELADA" in str(excinfo.value)
+    db_session.expire_all()
+    assert reserva.estado == EstadoReserva.CANCELADA
+
+
+def test_no_show_rechaza_si_otra_peticion_cambio_el_estado(
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """No-show valida el estado recargado, no el leído antes de bloquear."""
+    reserva, _, _, _ = _crear(
+        db=db_session,
+        numero=1603,
+        estado=EstadoReserva.CONFIRMADA,
+        entrada=HOY,
+        salida=HOY + timedelta(days=2),
+    )
+    _simular_cambio_de_estado_por_otra_peticion(monkeypatch, reserva.id)
+
+    with pytest.raises(reserva_service.TransicionInvalidaError) as excinfo:
+        reserva_service.no_show_reserva(db_session, reserva.id, 1, HOY)
+
+    assert excinfo.value.codigo == "TRANSICION_INVALIDA"
+    assert "CANCELADA" in str(excinfo.value)
+    db_session.expire_all()
+    assert reserva.estado == EstadoReserva.CANCELADA
