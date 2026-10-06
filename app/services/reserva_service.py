@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.schemas.huesped import HuespedResumen
 from app.schemas.reserva import (
+    CancelarReservaRequest,
     HabitacionResumen,
     ReservaCreate,
     ReservaFiltros,
@@ -45,6 +46,30 @@ ANCHO_SECUENCIAL = 6
 ESTADOS_LIBERAN_HABITACION = (EstadoReserva.CANCELADA, EstadoReserva.NO_SHOW)
 # Estados en los que la reserva todavia puede editarse.
 ESTADOS_EDITABLES = (EstadoReserva.PENDIENTE, EstadoReserva.CONFIRMADA)
+
+# Transiciones de estado permitidas (clave = estado origen, valor = set de destinos).
+TRANSICIONES_VALIDAS = {
+    EstadoReserva.PENDIENTE: {EstadoReserva.CONFIRMADA, EstadoReserva.CANCELADA},
+    EstadoReserva.CONFIRMADA: {EstadoReserva.CANCELADA, EstadoReserva.NO_SHOW},
+}
+
+
+class TransicionInvalidaError(ReglaNegocioError):
+    codigo = "TRANSICION_INVALIDA"
+
+    def __init__(self, estado_actual: EstadoReserva, estado_pedido: EstadoReserva) -> None:
+        super().__init__(
+            f"Transicion invalida: de {estado_actual.value} a {estado_pedido.value}"
+        )
+
+
+class NoShowAntesDeFechaError(ReglaNegocioError):
+    codigo = "NO_SHOW_ANTES_DE_FECHA"
+
+    def __init__(self, fecha_entrada: date) -> None:
+        super().__init__(
+            f"No se puede marcar NO_SHOW antes de la fecha de entrada ({fecha_entrada.isoformat()})"
+        )
 
 
 class ReservaNoEncontradaError(NoEncontradoError):
@@ -542,3 +567,147 @@ def actualizar_reserva(
         raise ReservaSolapadaError from error
     db.refresh(reserva)
     return _armar_lectura(reserva, huesped, habitacion)
+
+
+def _cambiar_estado_y_auditar(
+    db: Session,
+    reserva: Reserva,
+    habitacion: Habitacion,
+    nuevo_estado: EstadoReserva,
+    motivo: str | None = None,
+) -> ReservaRead:
+    """Cambia el estado de la reserva, guarda motivo si corresponde y registra auditoría."""
+    estado_anterior = reserva.estado
+    reserva.estado = nuevo_estado
+    if motivo is not None:
+        reserva.motivo_cancelacion = motivo
+    db.commit()
+    db.refresh(reserva)
+
+    # Auditoría: solo estado anterior y nuevo
+    from app.services import auditoria_service
+    auditoria_service.registrar_auditoria(
+        db,
+        usuario_id=reserva.creada_por,
+        accion="STATE_CHANGE",
+        entidad="Reserva",
+        entidad_id=reserva.id,
+        detalle={
+            "estado_anterior": estado_anterior.value,
+            "estado_nuevo": nuevo_estado.value,
+        },
+        commit=False,
+    )
+    db.commit()
+
+    huesped = db.get(Huesped, reserva.huesped_id)
+    return _armar_lectura(reserva, huesped, habitacion)
+
+
+def confirmar_reserva(
+    db: Session,
+    reserva_id: int,
+    usuario_id: int,
+    hoy: date,
+) -> ReservaRead:
+    """Confirma una reserva PENDIENTE -> CONFIRMADA.
+
+    Revalida que la habitacion siga activa y que no haya solapamiento
+    (excluyendo la propia reserva). La entrada no puede ser anterior a hoy.
+    """
+    reserva = db.get(Reserva, reserva_id)
+    if reserva is None:
+        raise ReservaNoEncontradaError
+
+    # Validar transición
+    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
+    if destinos is None or EstadoReserva.CONFIRMADA not in destinos:
+        raise TransicionInvalidaError(reserva.estado, EstadoReserva.CONFIRMADA)
+
+    # Bloquear habitación y recargar reserva
+    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
+    db.refresh(
+        reserva,
+        attribute_names=["estado", "fecha_entrada", "fecha_salida", "habitacion_id"],
+    )
+
+    # Revalidar habitación activa
+    if not _es_activa(habitacion):
+        raise HabitacionInactivaError
+
+    # Revalidar solapamiento excluyendo la propia reserva
+    if _existe_solapamiento(
+        db,
+        habitacion.id,
+        reserva.fecha_entrada,
+        reserva.fecha_salida,
+        excluir_reserva_id=reserva.id,
+    ):
+        raise ReservaSolapadaError
+
+    # Entrada en el pasado (incluye misma fecha? El mismo día SÍ se permite)
+    if reserva.fecha_entrada < hoy:
+        raise EntradaEnPasadoError(hoy)
+
+    return _cambiar_estado_y_auditar(db, reserva, habitacion, EstadoReserva.CONFIRMADA)
+
+
+def cancelar_reserva(
+    db: Session,
+    reserva_id: int,
+    datos: CancelarReservaRequest,
+    usuario_id: int,
+) -> ReservaRead:
+    """Cancela una reserva PENDIENTE|CONFIRMADA -> CANCELADA.
+
+    Guarda el motivo en motivo_cancelacion. La habitación queda libre.
+    """
+    reserva = db.get(Reserva, reserva_id)
+    if reserva is None:
+        raise ReservaNoEncontradaError
+
+    # Validar transición
+    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
+    if destinos is None or EstadoReserva.CANCELADA not in destinos:
+        raise TransicionInvalidaError(reserva.estado, EstadoReserva.CANCELADA)
+
+    # Bloquear habitación y recargar reserva
+    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
+    db.refresh(reserva, attribute_names=["estado"])
+
+    # Motivo ya viene validado y stripeado por el schema
+    motivo = datos.motivo
+
+    return _cambiar_estado_y_auditar(
+        db, reserva, habitacion, EstadoReserva.CANCELADA, motivo=motivo
+    )
+
+
+def no_show_reserva(
+    db: Session,
+    reserva_id: int,
+    usuario_id: int,
+    hoy: date,
+) -> ReservaRead:
+    """Marca una reserva CONFIRMADA -> NO_SHOW.
+
+    Solo se permite si hoy >= fecha_entrada. La habitación queda libre.
+    """
+    reserva = db.get(Reserva, reserva_id)
+    if reserva is None:
+        raise ReservaNoEncontradaError
+
+    # Validar transición PRIMERO
+    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
+    if destinos is None or EstadoReserva.NO_SHOW not in destinos:
+        raise TransicionInvalidaError(reserva.estado, EstadoReserva.NO_SHOW)
+
+    # Luego validar fecha
+    if hoy < reserva.fecha_entrada:
+        raise NoShowAntesDeFechaError(reserva.fecha_entrada)
+
+    # Bloquear habitación y recargar reserva
+    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
+    db.refresh(reserva, attribute_names=["estado", "fecha_entrada"])
+
+    return _cambiar_estado_y_auditar(db, reserva, habitacion, EstadoReserva.NO_SHOW)

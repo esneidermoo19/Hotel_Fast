@@ -10,6 +10,7 @@ from app.core.pagination import Pagina, PaginacionParams
 from app.core.tiempo import obtener_hoy
 from app.models import EstadoReserva, RolUsuario, TipoHabitacion, Usuario
 from app.schemas.reserva import (
+    CancelarReservaRequest,
     HabitacionResumen,
     ReservaCreate,
     ReservaFiltros,
@@ -244,3 +245,92 @@ def actualizar_reserva(
         detalle=_detalle_auditoria(lectura),
     )
     return lectura
+
+
+@router.post(
+    "/{reserva_id}/confirmar",
+    response_model=ReservaRead,
+    summary="Confirmar reserva",
+    description=(
+        "Cambia una reserva de PENDIENTE a CONFIRMADA. Revalida que la habitacion "
+        "siga activa y que no haya solapamiento excluyendo la propia reserva. "
+        "La fecha de entrada no puede ser anterior a hoy en Bogota."
+    ),
+    responses={
+        200: {"description": "Reserva confirmada"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para confirmar reservas"},
+        404: {"description": "Reserva no encontrada"},
+        409: {
+            "description": (
+                "Transicion invalida (p.ej. de CANCELADA), habitacion inactiva, "
+                "solapamiento con otra reserva, o fecha de entrada en el pasado"
+            )
+        },
+    },
+)
+def confirmar_reserva(
+    reserva_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+    hoy: Annotated[date, Depends(obtener_hoy)],
+) -> ReservaRead:
+    return reserva_service.confirmar_reserva(db, reserva_id, usuario.id, hoy)
+
+
+@router.post(
+    "/{reserva_id}/cancelar",
+    response_model=ReservaRead,
+    summary="Cancelar reserva",
+    description=(
+        "Cambia una reserva de PENDIENTE o CONFIRMADA a CANCELADA. "
+        "Requiere un motivo de 3 a 500 caracteres (se recortan espacios). "
+        "La habitacion queda libre para nuevas reservas."
+    ),
+    responses={
+        200: {"description": "Reserva cancelada"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para cancelar reservas"},
+        404: {"description": "Reserva no encontrada"},
+        409: {"description": "Transicion invalida (p.ej. de CHECK_IN, NO_SHOW)"},
+        422: {"description": "Motivo invalido (3-500 caracteres, sin solo espacios)"},
+    },
+)
+def cancelar_reserva(
+    reserva_id: int,
+    datos: CancelarReservaRequest,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+) -> ReservaRead:
+    return reserva_service.cancelar_reserva(db, reserva_id, datos, usuario.id)
+
+
+@router.post(
+    "/{reserva_id}/no-show",
+    response_model=ReservaRead,
+    summary="Marcar no-show",
+    description=(
+        "Cambia una reserva de CONFIRMADA a NO_SHOW. "
+        "Solo permitido si hoy (en Bogota) es mayor o igual a la fecha de entrada. "
+        "La habitacion queda libre para nuevas reservas."
+    ),
+    responses={
+        200: {"description": "Reserva marcada como NO_SHOW"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para marcar no-show"},
+        404: {"description": "Reserva no encontrada"},
+        409: {
+            "description": (
+                "Transicion invalida (p.ej. de PENDIENTE, CANCELADA) o "
+                "intento de no-show antes de la fecha de entrada"
+            )
+        },
+    },
+)
+def no_show_reserva(
+    reserva_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+    hoy: Annotated[date, Depends(obtener_hoy)],
+) -> ReservaRead:
+    return reserva_service.no_show_reserva(db, reserva_id, usuario.id, hoy)

@@ -1,12 +1,18 @@
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Annotated
 
 from pydantic import Field, field_serializer
+from pydantic.types import StringConstraints
 
 from app.core.pagination import Pagina
 from app.models import EstadoReserva, TipoHabitacion
 from app.schemas.base import CamelCaseSchema
 from app.schemas.huesped import HuespedResumen
+
+MotivoCancelacion = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=3, max_length=500)
+]
 
 
 class HabitacionResumen(CamelCaseSchema):
@@ -37,6 +43,10 @@ class ReservaUpdate(CamelCaseSchema):
     fecha_salida: date | None = None
     numero_huespedes: int | None = Field(default=None, ge=1)
     observaciones: str | None = Field(default=None, max_length=1000)
+
+
+class CancelarReservaRequest(CamelCaseSchema):
+    motivo: MotivoCancelacion
 
 
 class ReservaRead(CamelCaseSchema):
