@@ -223,12 +223,19 @@ def _bloquear_habitacion_de_reserva(
 ) -> dict[int, Habitacion]:
     """Bloquea las habitaciones implicadas y fija la reserva con SELECT FOR UPDATE.
 
-    Orden de bloqueo: SIEMPRE por `habitacion.id` ascendente, y siempre habitación
-    antes que reserva. El orden total y estable es lo que evita deadlocks: dos
-    peticiones que se crucen (mover la reserva A->B y a la vez B->A) terminan tomando
-    los mismos bloqueos en la misma secuencia, así que una espera a la otra en vez de
-    formarse un ciclo. Por eso la habitación destino de un PUT se bloquea junto con
-    la actual en este mismo paso, y no después.
+    Orden de bloqueo: en la primera pasada las habitaciones se bloquean por
+    `habitacion.id` ascendente, y siempre habitación antes que reserva. Ese orden
+    total y estable es lo que evita deadlocks: dos peticiones que se crucen (mover la
+    reserva A->B y a la vez B->A) terminan tomando los mismos bloqueos en la misma
+    secuencia, así que una espera a la otra en vez de formarse un ciclo. Por eso la
+    habitación destino de un PUT se bloquea junto con la actual en este mismo paso, y
+    no después.
+
+    Excepción acotada: si la reserva cambia de habitación mientras se bloquea, el
+    reintento puede tomar una habitación con id menor que otra ya retenida, porque los
+    bloqueos adquiridos no se sueltan. Es una carrera muy improbable y está acotada
+    por MAX_INTENTOS_BLOQUEO; en PostgreSQL un deadlock lo resolvería abortando una
+    de las dos transacciones.
 
     `habitacion_adicional_id` es la habitación destino de un cambio; si es None solo
     se bloquea la actual. El valor devuelto son las habitaciones bloqueadas, indexadas
@@ -256,8 +263,8 @@ def _bloquear_habitacion_de_reserva(
             return bloqueadas
 
         # La reserva cambió de habitación mientras bloqueábamos: se añade la nueva al
-        # conjunto y se vuelve a bloquear todo en orden ascendente. Los bloqueos ya
-        # adquiridos se conservan, así que no se vuelven a tomar.
+        # conjunto. Los bloqueos ya adquiridos se conservan, así que no se vuelven a
+        # tomar y la habitación nueva puede quedar por debajo de una ya retenida.
         pendientes.add(reserva_fijada.habitacion_id)
 
     raise ConflictoError(
