@@ -2,7 +2,8 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
 from pydantic.alias_generators import to_camel
 from sqlalchemy import text
@@ -56,7 +57,7 @@ app = FastAPI(
     description="API para la administracion integral de las operaciones del hotel.",
     version="1.0.0",
     openapi_url=None if settings.is_production else "/openapi.json",
-    docs_url=None if settings.is_production else "/docs",
+    docs_url=None,
     redoc_url=None if settings.is_production else "/redoc",
     openapi_tags=openapi_tags,
     swagger_ui_parameters={"persistAuthorization": True},
@@ -89,6 +90,16 @@ app.include_router(cuentas.router)
 app.include_router(horarios.router)
 app.include_router(reportes.router)
 app.include_router(dashboard.router)
+
+
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html() -> HTMLResponse:
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url or "/openapi.json",
+        title=f"{app.title} - Swagger UI",
+        swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
+    )
 
 
 @app.get(
