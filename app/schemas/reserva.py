@@ -77,6 +77,24 @@ class ReservaRead(CamelCaseSchema):
         return float(value)
 
 
+class CheckOutRead(ReservaRead):
+    """Reserva en CHECK_OUT con el resultado economico de su cuenta."""
+
+    total_cuenta: Decimal = Field(description="Alojamiento + consumos vigentes")
+    total_pagado: Decimal = Field(
+        description="Pagos vigentes; los reembolsos se restan"
+    )
+    saldo_pendiente: Decimal = Field(
+        description="Total de la cuenta menos lo ya pagado"
+    )
+
+    @field_serializer(
+        "total_cuenta", "total_pagado", "saldo_pendiente", when_used="json"
+    )
+    def serialize_saldos(self, value: Decimal) -> float:
+        return float(value)
+
+
 class ReservaFiltros(CamelCaseSchema):
     pagina: int = 1
     tamano: int = 20

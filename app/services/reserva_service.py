@@ -34,6 +34,7 @@ from app.models import (
 from app.schemas.huesped import HuespedResumen
 from app.schemas.reserva import (
     CancelarReservaRequest,
+    CheckOutRead,
     ExtenderReservaRequest,
     HabitacionResumen,
     ReservaCreate,
@@ -41,7 +42,7 @@ from app.schemas.reserva import (
     ReservaRead,
     ReservaUpdate,
 )
-from app.services import auditoria_service
+from app.services import auditoria_service, cuenta_service
 
 PATRON_CODIGO = re.compile(r"^RES-(\d{4})-(\d+)$")
 MAX_INTENTOS_CODIGO = 5
@@ -1003,16 +1004,39 @@ def check_in_reserva(
     return _armar_lectura(reserva, huesped, habitacion)
 
 
+def _con_resultado_economico(db: Session, lectura: ReservaRead) -> CheckOutRead:
+    """Completa la lectura de una reserva con el resultado de su cuenta.
+
+    El cálculo es siempre el de `cuenta_service.calcular_cuenta`: aquí solo se
+    suman sus campos para exponer total, pagado y saldo pendiente.
+    """
+    cuenta = cuenta_service.calcular_cuenta(db, lectura.id)
+    return CheckOutRead(
+        **lectura.model_dump(),
+        total_cuenta=cuenta.total_alojamiento + cuenta.total_consumos_vigentes,
+        total_pagado=cuenta.total_pagos_vigentes,
+        saldo_pendiente=cuenta.saldo_pendiente,
+    )
+
+
 def check_out_reserva(
     db: Session,
     reserva_id: int,
     usuario_id: int,
-) -> ReservaRead:
+) -> CheckOutRead:
     """Registra el check-out de una reserva CHECK_IN -> CHECK_OUT.
 
     No cambia `fecha_salida` ni el total: lo facturado sigue siendo lo
     reservado. La habitación queda SUCIA; si estaba OCUPADA pasa a DISPONIBLE y
     si está en MANTENIMIENTO se respeta y no se cambia.
+
+    Devuelve `CheckOutRead`: la reserva leída de siempre más el resultado
+    económico de la cuenta (total, pagado y saldo pendiente), calculado con
+    `cuenta_service.calcular_cuenta`.
+
+    El check-out **no se bloquea por saldo pendiente**: el dominio no exige
+    saldo cero (decisión de negocio, no un olvido). El saldo se expone en la
+    respuesta para que recepción lo cobre o lo deje registrado.
     """
     reserva = db.get(Reserva, reserva_id)
     if reserva is None:
@@ -1062,7 +1086,8 @@ def check_out_reserva(
     db.refresh(reserva)
     db.refresh(habitacion)
     huesped = db.get(Huesped, reserva.huesped_id)
-    return _armar_lectura(reserva, huesped, habitacion)
+    lectura = _armar_lectura(reserva, huesped, habitacion)
+    return _con_resultado_economico(db, lectura)
 
 
 def extender_reserva(
