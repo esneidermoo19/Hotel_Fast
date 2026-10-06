@@ -1,4 +1,4 @@
-# Hotel La Orquídea API
+# Hotel La Flusi API
 
 Backend REST para el PMS del hotel, construido con FastAPI, SQLAlchemy 2 y PostgreSQL.
 
