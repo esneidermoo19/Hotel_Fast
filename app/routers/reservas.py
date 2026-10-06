@@ -11,6 +11,7 @@ from app.core.tiempo import obtener_hoy
 from app.models import EstadoReserva, RolUsuario, TipoHabitacion, Usuario
 from app.schemas.reserva import (
     CancelarReservaRequest,
+    CheckOutRead,
     ExtenderReservaRequest,
     HabitacionResumen,
     ReservaCreate,
@@ -371,15 +372,18 @@ def check_in_reserva(
 
 @router.post(
     "/{reserva_id}/check-out",
-    response_model=ReservaRead,
+    response_model=CheckOutRead,
     summary="Registrar check-out",
     description=(
         "Cambia una reserva de CHECK_IN a CHECK_OUT y deja la habitacion SUCIA. "
         "No cambia la fecha de salida ni el total: lo facturado sigue siendo lo "
-        "reservado."
+        "reservado. La respuesta incluye el resultado economico de la cuenta "
+        "(total, pagado y saldo pendiente), calculado con calcular_cuenta. El "
+        "check-out no se bloquea por saldo pendiente: el saldo se expone para "
+        "que recepcion lo gestione."
     ),
     responses={
-        200: {"description": "Reserva en CHECK_OUT"},
+        200: {"description": "Reserva en CHECK_OUT con su resultado economico"},
         401: {"description": "Token de acceso invalido o ausente"},
         403: {"description": "Rol sin permisos para registrar check-out"},
         404: {"description": "Reserva no encontrada"},
@@ -390,7 +394,7 @@ def check_out_reserva(
     reserva_id: int,
     db: Annotated[Session, Depends(get_db)],
     usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
-) -> ReservaRead:
+) -> CheckOutRead:
     return reserva_service.check_out_reserva(db, reserva_id, usuario.id)
 
 

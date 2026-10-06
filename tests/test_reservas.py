@@ -18,7 +18,14 @@ from app.models import (
 from app.routers.reservas import router
 from app.schemas.reserva import CancelarReservaRequest
 from app.services import auditoria_service, reserva_service
-from tests.factories import crear_habitacion, crear_huesped, crear_reserva, crear_usuario
+from tests.factories import (
+    crear_consumo,
+    crear_habitacion,
+    crear_huesped,
+    crear_pago,
+    crear_reserva,
+    crear_usuario,
+)
 
 HOY = date(2026, 10, 1)
 
@@ -2004,6 +2011,84 @@ def test_checkout_en_mantenimiento_no_cambia_el_estado_de_la_habitacion(
     habitacion_final = _habitacion(client, habitacion.id, admin_headers)
     assert habitacion_final["estado"] == "MANTENIMIENTO"
     assert habitacion_final["limpieza"] == "SUCIA"
+
+
+def test_check_out_sin_pagos_expone_saldo_igual_al_total(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Sin pagos, el check-out expone total, cero pagado y todo pendiente.
+
+    De paso fija que el check-out NO se bloquea por saldo pendiente: el
+    dominio no exige saldo cero, solo expone el resultado economico.
+    """
+    reserva, _, _, _ = _crear(
+        db=db_session, numero=1640, estado=EstadoReserva.CONFIRMADA
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    datos = response.json()
+    assert datos["estado"] == "CHECK_OUT"
+    assert datos["totalCuenta"] == 450000.0  # 3 noches x 150000, sin consumos
+    assert datos["totalPagado"] == 0.0
+    assert datos["saldoPendiente"] == 450000.0
+
+
+def test_check_out_con_pagos_y_consumos_expone_el_saldo_restante(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """La cuenta del check-out suma consumos y descuenta lo ya pagado."""
+    reserva, _, _, creador = _crear(
+        db=db_session, numero=1641, estado=EstadoReserva.CONFIRMADA
+    )
+    crear_consumo(
+        db_session,
+        reserva=reserva,
+        usuario=creador,
+        cantidad=2,
+        precio_unitario=Decimal("25000.00"),
+    )
+    crear_pago(
+        db_session, reserva=reserva, usuario=creador, monto=Decimal("450000.00")
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    datos = response.json()
+    assert datos["totalCuenta"] == 500000.0  # 450000 + 50000 en consumos
+    assert datos["totalPagado"] == 450000.0
+    assert datos["saldoPendiente"] == 50000.0
+
+
+def test_check_out_con_cuenta_saldada_expone_cero_pendiente(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    """Con la cuenta pagada por completo el saldo pendiente queda en cero."""
+    reserva, _, _, creador = _crear(
+        db=db_session, numero=1642, estado=EstadoReserva.CONFIRMADA
+    )
+    crear_pago(
+        db_session, reserva=reserva, usuario=creador, monto=Decimal("450000.00")
+    )
+    client.post(f"/api/reservas/{reserva.id}/check-in", headers=admin_headers)
+
+    response = client.post(
+        f"/api/reservas/{reserva.id}/check-out", headers=admin_headers
+    )
+
+    assert response.status_code == 200
+    datos = response.json()
+    assert datos["totalCuenta"] == 450000.0
+    assert datos["totalPagado"] == 450000.0
+    assert datos["saldoPendiente"] == 0.0
 
 
 def test_checkout_anticipado_libera_las_noches_no_usadas(
