@@ -1,0 +1,3636 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hotel Fast - API de gestion hotelera",
+    "description": "API para la administracion integral de las operaciones del hotel.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Iniciar sesion",
+        "description": "Valida un username o email y devuelve tokens de acceso.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sesion iniciada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida"
+          },
+          "401": {
+            "description": "Credenciales incorrectas"
+          }
+        }
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Renovar tokens",
+        "description": "Rota el refresh token y emite un nuevo par de tokens.",
+        "operationId": "refrescarToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Tokens renovados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Refresh token invalido"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Cerrar sesion",
+        "description": "Revoca el refresh token proporcionado.",
+        "operationId": "cerrarSesion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Sesion cerrada"
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Refresh token invalido"
+          }
+        }
+      }
+    },
+    "/api/auth/cambiar-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Cambiar contrasena",
+        "description": "Actualiza la contrasena del usuario autenticado.",
+        "operationId": "cambiarPassword",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CambiarPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Contrasena actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Cambiarpassword"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Obtener sesion actual",
+        "description": "Devuelve los datos del usuario autenticado.",
+        "operationId": "obtenerSesion",
+        "responses": {
+          "200": {
+            "description": "Sesion actual",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/habitaciones": {
+      "get": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Listar habitaciones",
+        "description": "Lista las habitaciones disponibles para la gestion hotelera.",
+        "operationId": "listarHabitaciones",
+        "responses": {
+          "200": {
+            "description": "Listado de habitaciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HabitacionRead"
+                  },
+                  "type": "array",
+                  "title": "Response Listarhabitaciones"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar habitaciones"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Crear habitacion",
+        "description": "Registra una habitacion nueva.",
+        "operationId": "crearHabitacion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitacionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Habitacion creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de habitacion invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "409": {
+            "description": "El numero de habitacion ya existe"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/habitaciones/{habitacion_id}": {
+      "get": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Obtener habitacion",
+        "description": "Obtiene una habitacion por su identificador.",
+        "operationId": "obtenerHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Habitacion encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar habitaciones"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Actualizar habitacion",
+        "description": "Actualiza los datos de una habitacion existente.",
+        "operationId": "actualizarHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitacionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Habitacion actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de habitacion invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          },
+          "409": {
+            "description": "El numero de habitacion ya existe"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Eliminar habitacion",
+        "description": "Elimina una habitacion sin reservas futuras.",
+        "operationId": "eliminarHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Habitacion eliminada"
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          },
+          "409": {
+            "description": "La habitacion tiene reservas futuras"
+          }
+        }
+      }
+    },
+    "/api/habitaciones/{habitacion_id}/estado": {
+      "patch": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Actualizar estado de habitacion",
+        "description": "Cambia el estado operativo de una habitacion.",
+        "operationId": "actualizarEstadoHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitacionEstado"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estado actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Estado de habitacion invalido"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para cambiar el estado"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          }
+        }
+      }
+    },
+    "/api/huespedes": {
+      "get": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Listar huespedes",
+        "description": "Lista paginada de huespedes con busqueda y filtros.",
+        "operationId": "listarHuespedes",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Texto en nombres, apellidos o documento",
+              "title": "Q"
+            },
+            "description": "Texto en nombres, apellidos o documento"
+          },
+          {
+            "name": "tipoDocumento",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TipoDocumento"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipodocumento"
+            }
+          },
+          {
+            "name": "numeroDocumento",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Numerodocumento"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de huespedes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_HuespedRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar huespedes"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Crear huesped",
+        "description": "Registra un huesped nuevo con documento unico por tipo.",
+        "operationId": "crearHuesped",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HuespedCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Huesped creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HuespedRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para crear huespedes"
+          },
+          "409": {
+            "description": "Documento duplicado"
+          }
+        }
+      }
+    },
+    "/api/huespedes/{huesped_id}": {
+      "get": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Obtener huesped",
+        "description": "Obtiene un huesped por su identificador.",
+        "operationId": "obtenerHuesped",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "huesped_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Huesped Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Huesped encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HuespedRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar huespedes"
+          },
+          "404": {
+            "description": "Huesped no encontrado"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Actualizar huesped",
+        "description": "Actualiza los datos de un huesped existente.",
+        "operationId": "actualizarHuesped",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "huesped_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Huesped Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HuespedUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Huesped actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HuespedRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para actualizar huespedes"
+          },
+          "404": {
+            "description": "Huesped no encontrado"
+          },
+          "409": {
+            "description": "Documento duplicado"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Eliminar huesped",
+        "description": "Elimina un huesped solo si no tiene reservas. Solo ADMIN.",
+        "operationId": "eliminarHuesped",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "huesped_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Huesped Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Huesped eliminado"
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Huesped no encontrado"
+          },
+          "409": {
+            "description": "El huesped tiene reservas"
+          }
+        }
+      }
+    },
+    "/api/huespedes/{huesped_id}/reservas": {
+      "get": {
+        "tags": [
+          "huespedes"
+        ],
+        "summary": "Listar reservas del huesped",
+        "description": "Lista paginada de reservas del huesped por entrada descendente.",
+        "operationId": "listarReservasDeHuesped",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "huesped_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Huesped Id"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de reservas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_ReservaDeHuespedRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar reservas"
+          },
+          "404": {
+            "description": "Huesped no encontrado"
+          }
+        }
+      }
+    },
+    "/api/usuarios": {
+      "get": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Listar usuarios",
+        "description": "Lista usuarios con paginacion y filtros por rol, estado y texto.",
+        "operationId": "listarUsuarios",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "rol",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RolUsuario"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rol"
+            }
+          },
+          {
+            "name": "activo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Activo"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "solo_activos",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Solo Activos"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de usuarios",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_UsuarioRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parametros de consulta invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Crear usuario",
+        "description": "Crea un usuario y registra la accion en la bitacora.",
+        "operationId": "crearUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioCrear"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de usuario invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "409": {
+            "description": "El username o email ya existe"
+          }
+        }
+      }
+    },
+    "/api/usuarios/{usuario_id}": {
+      "get": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Obtener usuario",
+        "description": "Obtiene un usuario por su identificador.",
+        "operationId": "obtenerUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usuario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Usuario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Actualizar usuario",
+        "description": "Actualiza los datos de un usuario existente.",
+        "operationId": "actualizarUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usuario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Usuario Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsuarioActualizar"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Usuario actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de usuario invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "409": {
+            "description": "Los cambios entran en conflicto con las reglas de usuarios"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Eliminar usuario",
+        "description": "Elimina fisicamente una cuenta creada por error.",
+        "operationId": "eliminarUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usuario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Usuario Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Usuario eliminado"
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "409": {
+            "description": "No puedes eliminar tu propia cuenta"
+          }
+        }
+      }
+    },
+    "/api/usuarios/{usuario_id}/desactivar": {
+      "post": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Desactivar usuario",
+        "description": "Desactiva una cuenta sin eliminar su historial.",
+        "operationId": "desactivarUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usuario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Usuario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario desactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "409": {
+            "description": "No se puede desactivar esta cuenta"
+          }
+        }
+      }
+    },
+    "/api/usuarios/{usuario_id}/reactivar": {
+      "post": {
+        "tags": [
+          "usuarios"
+        ],
+        "summary": "Reactivar usuario",
+        "description": "Reactiva una cuenta de usuario desactivada.",
+        "operationId": "reactivarUsuario",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "usuario_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Usuario Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usuario reactivado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsuarioRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Usuario no encontrado"
+          },
+          "409": {
+            "description": "Los cambios entran en conflicto con las reglas de usuarios"
+          }
+        }
+      }
+    },
+    "/api/catalogos": {
+      "get": {
+        "tags": [
+          "catalogos"
+        ],
+        "summary": "Listar catalogos",
+        "description": "Lista los catalogos disponibles para la aplicacion.",
+        "operationId": "listarCatalogos",
+        "responses": {
+          "200": {
+            "description": "Listado de catalogos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CatalogoRead"
+                  },
+                  "type": "array",
+                  "title": "Response Listarcatalogos"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/catalogos/{nombre}": {
+      "get": {
+        "tags": [
+          "catalogos"
+        ],
+        "summary": "Obtener catalogo",
+        "description": "Obtiene las opciones de un catalogo por su nombre.",
+        "operationId": "obtenerCatalogo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "nombre",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Nombre"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalogo encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogoRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "404": {
+            "description": "Catalogo no encontrado"
+          }
+        }
+      }
+    },
+    "/api/auditoria": {
+      "get": {
+        "tags": [
+          "auditoria"
+        ],
+        "summary": "Listar auditoria",
+        "description": "Consulta eventos recientes de auditoria con filtros opcionales.",
+        "operationId": "listarAuditoria",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entidad",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entidad"
+            }
+          },
+          {
+            "name": "entidadId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entidadid"
+            }
+          },
+          {
+            "name": "accion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Accion"
+            }
+          },
+          {
+            "name": "usuarioId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra por identificador de usuario",
+              "title": "Usuarioid"
+            },
+            "description": "Filtra por identificador de usuario"
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fecha inicial inclusiva en la zona America/Bogota",
+              "title": "Desde"
+            },
+            "description": "Fecha inicial inclusiva en la zona America/Bogota"
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fecha final inclusiva en la zona America/Bogota",
+              "title": "Hasta"
+            },
+            "description": "Fecha final inclusiva en la zona America/Bogota"
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de eventos de auditoria",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_AuditoriaRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Rango de fechas o parametros de consulta invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/pagos": {
+      "get": {
+        "tags": [
+          "pagos"
+        ],
+        "summary": "Listar pagos de una reserva",
+        "description": "Devuelve la lista paginada de pagos asociados a la reserva. Incluye un filtro opcional para ver solo los vigentes (no anulados).",
+        "operationId": "listarPagos",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          },
+          {
+            "name": "soloVigentes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Solovigentes"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de pagos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_PagoRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar pagos"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pagos"
+        ],
+        "summary": "Crear pago en una reserva",
+        "description": "Registra un nuevo pago en la reserva. Permitido en todos los estados excepto CANCELADA y NO_SHOW.",
+        "operationId": "crearPago",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PagoCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pago creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagoRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de pago invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para crear pagos"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Conflicto con el estado actual"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/pagos/{pago_id}/anular": {
+      "post": {
+        "tags": [
+          "pagos"
+        ],
+        "summary": "Anular un pago",
+        "description": "Marca el pago como anulado sin borrar el registro. Requiere rol administrador.",
+        "operationId": "anularPago",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          },
+          {
+            "name": "pago_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Pago Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PagoAnular"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pago anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagoRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Pago no encontrado o no pertenece a la reserva"
+          },
+          "409": {
+            "description": "El pago ya fue anulado"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/consumos": {
+      "get": {
+        "tags": [
+          "consumos"
+        ],
+        "summary": "Listar consumos de una reserva",
+        "description": "Devuelve la lista paginada de consumos asociados a la reserva. Incluye un filtro opcional para ver solo los vigentes (no anulados).",
+        "operationId": "listarConsumos",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          },
+          {
+            "name": "soloVigentes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Solovigentes"
+            }
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de consumos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_ConsumoRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar consumos"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "consumos"
+        ],
+        "summary": "Crear consumo en una reserva",
+        "description": "Registra un nuevo consumo (cargo) en la reserva. Solo permitido si la reserva esta en estado CHECK_IN.",
+        "operationId": "crearConsumo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumoCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Consumo creado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumoRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de consumo invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para crear consumos"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Conflicto con el estado actual"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/consumos/{consumo_id}/anular": {
+      "post": {
+        "tags": [
+          "consumos"
+        ],
+        "summary": "Anular un consumo",
+        "description": "Marca el consumo como anulado sin borrar el registro. Requiere rol administrador.",
+        "operationId": "anularConsumo",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          },
+          {
+            "name": "consumo_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Consumo Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumoAnular"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consumo anulado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumoRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Consumo no encontrado o no pertenece a la reserva"
+          },
+          "409": {
+            "description": "El consumo ya fue anulado"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Comprobar estado del servicio",
+        "description": "Verifica que la API y la base de datos esten disponibles.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Servicio disponible",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "503": {
+            "description": "Base de datos no disponible"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuditoriaRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "usuarioId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usuarioid"
+          },
+          "accion": {
+            "type": "string",
+            "title": "Accion"
+          },
+          "entidad": {
+            "type": "string",
+            "title": "Entidad"
+          },
+          "entidadId": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entidadid"
+          },
+          "ip": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip"
+          },
+          "detalle": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detalle"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "usuarioId",
+          "accion",
+          "entidad",
+          "entidadId",
+          "ip",
+          "detalle",
+          "createdAt"
+        ],
+        "title": "AuditoriaRead"
+      },
+      "CambiarPasswordRequest": {
+        "properties": {
+          "passwordActual": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Passwordactual"
+          },
+          "passwordNuevo": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Passwordnuevo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "passwordActual",
+          "passwordNuevo"
+        ],
+        "title": "CambiarPasswordRequest"
+      },
+      "CatalogoRead": {
+        "properties": {
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "etiqueta": {
+            "type": "string",
+            "title": "Etiqueta"
+          },
+          "valores": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Valores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nombre",
+          "etiqueta",
+          "valores"
+        ],
+        "title": "CatalogoRead"
+      },
+      "ConsumoAnular": {
+        "properties": {
+          "motivoAnulacion": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Motivoanulacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivoAnulacion"
+        ],
+        "title": "ConsumoAnular"
+      },
+      "ConsumoCreate": {
+        "properties": {
+          "descripcion": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Descripcion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Cantidad"
+          },
+          "precioUnitario": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Preciounitario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "descripcion",
+          "cantidad",
+          "precioUnitario"
+        ],
+        "title": "ConsumoCreate"
+      },
+      "ConsumoRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reservaId": {
+            "type": "integer",
+            "title": "Reservaid"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "precioUnitario": {
+            "type": "number",
+            "title": "Preciounitario"
+          },
+          "anulado": {
+            "type": "boolean",
+            "title": "Anulado"
+          },
+          "registradoPor": {
+            "type": "integer",
+            "title": "Registradopor"
+          },
+          "anuladoPor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladopor"
+          },
+          "anuladoEn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladoen"
+          },
+          "motivoAnulacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivoanulacion"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reservaId",
+          "descripcion",
+          "cantidad",
+          "precioUnitario",
+          "anulado",
+          "registradoPor",
+          "createdAt",
+          "updatedAt",
+          "total"
+        ],
+        "title": "ConsumoRead"
+      },
+      "EstadoHabitacion": {
+        "type": "string",
+        "enum": [
+          "DISPONIBLE",
+          "OCUPADA",
+          "MANTENIMIENTO"
+        ],
+        "title": "EstadoHabitacion"
+      },
+      "EstadoReserva": {
+        "type": "string",
+        "enum": [
+          "PENDIENTE",
+          "CONFIRMADA",
+          "CHECK_IN",
+          "CHECK_OUT",
+          "CANCELADA",
+          "NO_SHOW"
+        ],
+        "title": "EstadoReserva"
+      },
+      "HabitacionCreate": {
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Numero"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoHabitacion"
+          },
+          "capacidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Capacidad"
+          },
+          "precioPorNoche": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Preciopornoche"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoHabitacion",
+            "default": "DISPONIBLE"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "numero",
+          "tipo",
+          "capacidad",
+          "precioPorNoche"
+        ],
+        "title": "HabitacionCreate"
+      },
+      "HabitacionEstado": {
+        "properties": {
+          "estado": {
+            "$ref": "#/components/schemas/EstadoHabitacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estado"
+        ],
+        "title": "HabitacionEstado"
+      },
+      "HabitacionRead": {
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Numero"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoHabitacion"
+          },
+          "capacidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Capacidad"
+          },
+          "precioPorNoche": {
+            "type": "number",
+            "title": "Preciopornoche"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoHabitacion",
+            "default": "DISPONIBLE"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "numero",
+          "tipo",
+          "capacidad",
+          "precioPorNoche",
+          "id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "HabitacionRead"
+      },
+      "HabitacionUpdate": {
+        "properties": {
+          "numero": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Numero"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoHabitacion"
+          },
+          "capacidad": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Capacidad"
+          },
+          "precioPorNoche": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,8}|(?=[\\d.]{1,11}0*$)\\d{0,8}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Preciopornoche"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoHabitacion",
+            "default": "DISPONIBLE"
+          },
+          "descripcion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descripcion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "numero",
+          "tipo",
+          "capacidad",
+          "precioPorNoche"
+        ],
+        "title": "HabitacionUpdate"
+      },
+      "HuespedCreate": {
+        "properties": {
+          "tipoDocumento": {
+            "$ref": "#/components/schemas/TipoDocumento"
+          },
+          "numeroDocumento": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{4,20}$",
+            "title": "Numerodocumento"
+          },
+          "nombres": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Apellidos"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "telefono": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?\\d{7,15}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono"
+          },
+          "nacionalidad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nacionalidad"
+          },
+          "fechaNacimiento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechanacimiento"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tipoDocumento",
+          "numeroDocumento",
+          "nombres",
+          "apellidos"
+        ],
+        "title": "HuespedCreate"
+      },
+      "HuespedRead": {
+        "properties": {
+          "tipoDocumento": {
+            "$ref": "#/components/schemas/TipoDocumento"
+          },
+          "numeroDocumento": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{4,20}$",
+            "title": "Numerodocumento"
+          },
+          "nombres": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Apellidos"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "telefono": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?\\d{7,15}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono"
+          },
+          "nacionalidad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nacionalidad"
+          },
+          "fechaNacimiento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechanacimiento"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tipoDocumento",
+          "numeroDocumento",
+          "nombres",
+          "apellidos",
+          "id",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "HuespedRead"
+      },
+      "HuespedUpdate": {
+        "properties": {
+          "tipoDocumento": {
+            "$ref": "#/components/schemas/TipoDocumento"
+          },
+          "numeroDocumento": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{4,20}$",
+            "title": "Numerodocumento"
+          },
+          "nombres": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Apellidos"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "telefono": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\+?\\d{7,15}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telefono"
+          },
+          "nacionalidad": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nacionalidad"
+          },
+          "fechaNacimiento": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechanacimiento"
+          },
+          "direccion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direccion"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tipoDocumento",
+          "numeroDocumento",
+          "nombres",
+          "apellidos"
+        ],
+        "title": "HuespedUpdate"
+      },
+      "LoginRequest": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "LoginResponse": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "refreshToken": {
+            "type": "string",
+            "title": "Refreshtoken"
+          },
+          "tokenType": {
+            "type": "string",
+            "title": "Tokentype",
+            "default": "bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RolUsuario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "refreshToken",
+          "expiresIn",
+          "id",
+          "username",
+          "email",
+          "nombre",
+          "role"
+        ],
+        "title": "LoginResponse"
+      },
+      "MetodoPago": {
+        "type": "string",
+        "enum": [
+          "EFECTIVO",
+          "TARJETA",
+          "TRANSFERENCIA",
+          "OTRO"
+        ],
+        "title": "MetodoPago"
+      },
+      "Pagina_AuditoriaRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditoriaRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[AuditoriaRead]"
+      },
+      "Pagina_ConsumoRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ConsumoRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[ConsumoRead]"
+      },
+      "Pagina_HuespedRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HuespedRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[HuespedRead]"
+      },
+      "Pagina_PagoRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PagoRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[PagoRead]"
+      },
+      "Pagina_ReservaDeHuespedRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReservaDeHuespedRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[ReservaDeHuespedRead]"
+      },
+      "Pagina_UsuarioRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UsuarioRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[UsuarioRead]"
+      },
+      "PagoAnular": {
+        "properties": {
+          "motivoAnulacion": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Motivoanulacion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivoAnulacion"
+        ],
+        "title": "PagoAnular"
+      },
+      "PagoCreate": {
+        "properties": {
+          "monto": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Monto"
+          },
+          "metodo": {
+            "$ref": "#/components/schemas/MetodoPago"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoPago"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "fechaPago": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechapago"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monto",
+          "metodo",
+          "tipo"
+        ],
+        "title": "PagoCreate"
+      },
+      "PagoRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reservaId": {
+            "type": "integer",
+            "title": "Reservaid"
+          },
+          "monto": {
+            "type": "number",
+            "title": "Monto"
+          },
+          "metodo": {
+            "$ref": "#/components/schemas/MetodoPago"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoPago"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "anulado": {
+            "type": "boolean",
+            "title": "Anulado"
+          },
+          "motivoAnulacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivoanulacion"
+          },
+          "fechaPago": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fechapago"
+          },
+          "registradoPor": {
+            "type": "integer",
+            "title": "Registradopor"
+          },
+          "anuladoPor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladopor"
+          },
+          "anuladoEn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladoen"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reservaId",
+          "monto",
+          "metodo",
+          "tipo",
+          "anulado",
+          "fechaPago",
+          "registradoPor",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "PagoRead"
+      },
+      "RefreshRequest": {
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Refreshtoken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "title": "RefreshRequest"
+      },
+      "ReservaDeHuespedRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "habitacionId": {
+            "type": "integer",
+            "title": "Habitacionid"
+          },
+          "fechaEntrada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechaentrada"
+          },
+          "fechaSalida": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechasalida"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoReserva"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "habitacionId",
+          "fechaEntrada",
+          "fechaSalida",
+          "estado"
+        ],
+        "title": "ReservaDeHuespedRead"
+      },
+      "RolUsuario": {
+        "type": "string",
+        "enum": [
+          "ADMIN",
+          "RECEPCION"
+        ],
+        "title": "RolUsuario"
+      },
+      "TipoDocumento": {
+        "type": "string",
+        "enum": [
+          "CC",
+          "CE",
+          "PASAPORTE",
+          "TI",
+          "OTRO"
+        ],
+        "title": "TipoDocumento"
+      },
+      "TipoHabitacion": {
+        "type": "string",
+        "enum": [
+          "SIMPLE",
+          "DOBLE",
+          "SUITE",
+          "PRESIDENCIAL"
+        ],
+        "title": "TipoHabitacion"
+      },
+      "TipoPago": {
+        "type": "string",
+        "enum": [
+          "ABONO",
+          "PAGO_FINAL",
+          "REEMBOLSO"
+        ],
+        "title": "TipoPago"
+      },
+      "TokenPair": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "refreshToken": {
+            "type": "string",
+            "title": "Refreshtoken"
+          },
+          "tokenType": {
+            "type": "string",
+            "title": "Tokentype",
+            "default": "bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "title": "TokenPair"
+      },
+      "UsuarioActualizar": {
+        "properties": {
+          "username": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 3,
+                "pattern": "^[A-Za-z0-9._-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "nombre": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nombre"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RolUsuario"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "activo": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activo"
+          }
+        },
+        "type": "object",
+        "title": "UsuarioActualizar"
+      },
+      "UsuarioCrear": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9._-]+$",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "nombre": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Nombre"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RolUsuario",
+            "default": "RECEPCION"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "nombre",
+          "password"
+        ],
+        "title": "UsuarioCrear"
+      },
+      "UsuarioRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "nombre": {
+            "type": "string",
+            "title": "Nombre"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RolUsuario"
+          },
+          "activo": {
+            "type": "boolean",
+            "title": "Activo"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "email",
+          "nombre",
+          "role",
+          "activo",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "UsuarioRead"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Autenticacion y gestion de sesiones."
+    },
+    {
+      "name": "habitaciones",
+      "description": "Gestion de habitaciones del hotel."
+    },
+    {
+      "name": "huespedes",
+      "description": "Gestion de huespedes y sus reservas."
+    },
+    {
+      "name": "usuarios",
+      "description": "Administracion de usuarios y permisos."
+    },
+    {
+      "name": "catalogos",
+      "description": "Consulta de catalogos del sistema."
+    },
+    {
+      "name": "auditoria",
+      "description": "Consulta de eventos de auditoria."
+    },
+    {
+      "name": "reservas",
+      "description": "Gestion de reservas hoteleras."
+    },
+    {
+      "name": "pagos",
+      "description": "Gestion de pagos y transacciones."
+    },
+    {
+      "name": "consumos",
+      "description": "Gestion de consumos asociados a reservas."
+    },
+    {
+      "name": "cuentas",
+      "description": "Gestion de cuentas y cargos de huespedes."
+    },
+    {
+      "name": "horarios",
+      "description": "Gestion de horarios del personal."
+    },
+    {
+      "name": "reportes",
+      "description": "Consulta de reportes operativos."
+    },
+    {
+      "name": "dashboard",
+      "description": "Indicadores generales del hotel."
+    },
+    {
+      "name": "health",
+      "description": "Estado del servicio y sus dependencias."
+    }
+  ]
+}
