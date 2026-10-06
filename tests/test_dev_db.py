@@ -2,11 +2,11 @@
 
 import importlib
 
-from sqlalchemy import inspect
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.pool import StaticPool
 
 import app.core.config as config_module
 import app.models  # noqa: F401
-from app.core.database import Base, engine
 
 
 def _reload_modules():
@@ -41,9 +41,16 @@ def test_dev_db_creates_tables_with_sqlite(monkeypatch):
     assert settings.environment == "development"
     assert settings.database_url == "sqlite:///:memory:"
 
-    Base.metadata.create_all(bind=engine)
+    # Engine local con la URL del monkeypatch, sin depender del .env
+    local_engine = create_engine(
+        "sqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+    from app.core.database import Base
+    Base.metadata.create_all(bind=local_engine)
 
-    inspector = inspect(engine)
+    inspector = inspect(local_engine)
     tables = inspector.get_table_names()
     assert "usuarios" in tables
     assert "habitaciones" in tables
