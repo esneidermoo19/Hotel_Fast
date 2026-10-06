@@ -37,6 +37,7 @@ from app.schemas.reserva import (
     ReservaRead,
     ReservaUpdate,
 )
+from app.services import auditoria_service
 
 PATRON_CODIGO = re.compile(r"^RES-(\d{4})-(\d+)$")
 MAX_INTENTOS_CODIGO = 5
@@ -52,6 +53,13 @@ TRANSICIONES_VALIDAS = {
     EstadoReserva.PENDIENTE: {EstadoReserva.CONFIRMADA, EstadoReserva.CANCELADA},
     EstadoReserva.CONFIRMADA: {EstadoReserva.CANCELADA, EstadoReserva.NO_SHOW},
 }
+
+# Acciones de auditoría para cada transición de estado de una reserva.
+# Siguen la convención de verbo suelto usada en el resto del proyecto
+# (CREATE/UPDATE en reservas, ANULAR en consumos y pagos).
+ACCION_CONFIRMAR_RESERVA = "CONFIRMAR"
+ACCION_CANCELAR_RESERVA = "CANCELAR"
+ACCION_NO_SHOW_RESERVA = "NO_SHOW"
 
 
 class TransicionInvalidaError(ReglaNegocioError):
@@ -176,6 +184,17 @@ def _habitacion_para_reserva(db: Session, habitacion_id: int) -> Habitacion:
     if habitacion is None:
         raise HabitacionNoEncontradaError
     return habitacion
+
+
+def _validar_transicion(reserva: Reserva, destino: EstadoReserva) -> None:
+    """Valida que `reserva` pueda pasar a `destino`.
+
+    Lanza TransicionInvalidaError si la transición no está permitida desde el
+    estado actual de la reserva.
+    """
+    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
+    if destinos is None or destino not in destinos:
+        raise TransicionInvalidaError(reserva.estado, destino)
 
 
 def _es_activa(habitacion: Habitacion) -> bool:
@@ -573,33 +592,41 @@ def _cambiar_estado_y_auditar(
     db: Session,
     reserva: Reserva,
     habitacion: Habitacion,
-    nuevo_estado: EstadoReserva,
+    destino: EstadoReserva,
+    accion: str,
+    usuario_id: int,
     motivo: str | None = None,
 ) -> ReservaRead:
-    """Cambia el estado de la reserva, guarda motivo si corresponde y registra auditoría."""
+    """Cambia el estado de la reserva y registra la auditoría en una sola transacción.
+
+    La auditoría se atribuye a `usuario_id` (el usuario autenticado que ejecuta la
+    acción), nunca a `reserva.creada_por`. Si el cambio o el registro de auditoría
+    fallan, se revierte todo y la reserva conserva su estado anterior.
+    """
     estado_anterior = reserva.estado
-    reserva.estado = nuevo_estado
-    if motivo is not None:
-        reserva.motivo_cancelacion = motivo
-    db.commit()
+    try:
+        reserva.estado = destino
+        if motivo is not None:
+            reserva.motivo_cancelacion = motivo
+
+        auditoria_service.registrar_auditoria(
+            db,
+            usuario_id=usuario_id,
+            accion=accion,
+            entidad="Reserva",
+            entidad_id=reserva.id,
+            detalle={
+                "estado_anterior": estado_anterior.value,
+                "estado_nuevo": destino.value,
+            },
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(reserva)
-
-    # Auditoría: solo estado anterior y nuevo
-    from app.services import auditoria_service
-    auditoria_service.registrar_auditoria(
-        db,
-        usuario_id=reserva.creada_por,
-        accion="STATE_CHANGE",
-        entidad="Reserva",
-        entidad_id=reserva.id,
-        detalle={
-            "estado_anterior": estado_anterior.value,
-            "estado_nuevo": nuevo_estado.value,
-        },
-        commit=False,
-    )
-    db.commit()
-
     huesped = db.get(Huesped, reserva.huesped_id)
     return _armar_lectura(reserva, huesped, habitacion)
 
@@ -620,9 +647,7 @@ def confirmar_reserva(
         raise ReservaNoEncontradaError
 
     # Validar transición
-    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
-    if destinos is None or EstadoReserva.CONFIRMADA not in destinos:
-        raise TransicionInvalidaError(reserva.estado, EstadoReserva.CONFIRMADA)
+    _validar_transicion(reserva, EstadoReserva.CONFIRMADA)
 
     # Bloquear habitación y recargar reserva
     habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
@@ -649,7 +674,14 @@ def confirmar_reserva(
     if reserva.fecha_entrada < hoy:
         raise EntradaEnPasadoError(hoy)
 
-    return _cambiar_estado_y_auditar(db, reserva, habitacion, EstadoReserva.CONFIRMADA)
+    return _cambiar_estado_y_auditar(
+        db,
+        reserva,
+        habitacion,
+        EstadoReserva.CONFIRMADA,
+        ACCION_CONFIRMAR_RESERVA,
+        usuario_id,
+    )
 
 
 def cancelar_reserva(
@@ -667,9 +699,7 @@ def cancelar_reserva(
         raise ReservaNoEncontradaError
 
     # Validar transición
-    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
-    if destinos is None or EstadoReserva.CANCELADA not in destinos:
-        raise TransicionInvalidaError(reserva.estado, EstadoReserva.CANCELADA)
+    _validar_transicion(reserva, EstadoReserva.CANCELADA)
 
     # Bloquear habitación y recargar reserva
     habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
@@ -679,7 +709,13 @@ def cancelar_reserva(
     motivo = datos.motivo
 
     return _cambiar_estado_y_auditar(
-        db, reserva, habitacion, EstadoReserva.CANCELADA, motivo=motivo
+        db,
+        reserva,
+        habitacion,
+        EstadoReserva.CANCELADA,
+        ACCION_CANCELAR_RESERVA,
+        usuario_id,
+        motivo=motivo,
     )
 
 
@@ -698,9 +734,7 @@ def no_show_reserva(
         raise ReservaNoEncontradaError
 
     # Validar transición PRIMERO
-    destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
-    if destinos is None or EstadoReserva.NO_SHOW not in destinos:
-        raise TransicionInvalidaError(reserva.estado, EstadoReserva.NO_SHOW)
+    _validar_transicion(reserva, EstadoReserva.NO_SHOW)
 
     # Luego validar fecha
     if hoy < reserva.fecha_entrada:
@@ -710,4 +744,11 @@ def no_show_reserva(
     habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
     db.refresh(reserva, attribute_names=["estado", "fecha_entrada"])
 
-    return _cambiar_estado_y_auditar(db, reserva, habitacion, EstadoReserva.NO_SHOW)
+    return _cambiar_estado_y_auditar(
+        db,
+        reserva,
+        habitacion,
+        EstadoReserva.NO_SHOW,
+        ACCION_NO_SHOW_RESERVA,
+        usuario_id,
+    )

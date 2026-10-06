@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.core.tiempo import obtener_hoy
 from app.main import app
-from app.models import EstadoHabitacion, EstadoReserva, TipoHabitacion
+from app.models import EstadoHabitacion, EstadoReserva, Reserva, TipoHabitacion
 from app.routers.reservas import router
-from app.services import reserva_service
+from app.services import auditoria_service, reserva_service
 from tests.factories import crear_habitacion, crear_huesped, crear_reserva, crear_usuario
 
 HOY = date(2026, 10, 1)
@@ -1448,7 +1448,7 @@ def test_auditoria_al_confirmar(
 
     response = client.get(
         "/api/auditoria",
-        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        params={"entidad": "Reserva", "accion": "CONFIRMAR"},
         headers=admin_headers,
     )
 
@@ -1472,7 +1472,7 @@ def test_auditoria_al_cancelar(
 
     response = client.get(
         "/api/auditoria",
-        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        params={"entidad": "Reserva", "accion": "CANCELAR"},
         headers=admin_headers,
     )
 
@@ -1498,7 +1498,7 @@ def test_auditoria_al_no_show(
 
     response = client.get(
         "/api/auditoria",
-        params={"entidad": "Reserva", "accion": "STATE_CHANGE"},
+        params={"entidad": "Reserva", "accion": "NO_SHOW"},
         headers=admin_headers,
     )
 
@@ -1507,3 +1507,57 @@ def test_auditoria_al_no_show(
     detalle = response.json()["items"][0]["detalle"]
     assert detalle["estado_anterior"] == "CONFIRMADA"
     assert detalle["estado_nuevo"] == "NO_SHOW"
+
+
+def test_auditoria_atribuida_al_usuario_que_ejecuta_la_accion(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    recepcion_headers: dict[str, str],
+    recepcion_user,
+    db_session: Session,
+    hoy_fijo,
+) -> None:
+    """La auditoría registra al usuario autenticado, no a quien creó la reserva."""
+    reserva, _, _, creador = _crear(
+        db=db_session, numero=1501, estado=EstadoReserva.PENDIENTE
+    )
+    assert recepcion_user.id != creador.id, "el ejecutor debe ser distinto del creador"
+
+    response = client.post(f"/api/reservas/{reserva.id}/confirmar", headers=recepcion_headers)
+    assert response.status_code == 200
+
+    auditoria = client.get(
+        "/api/auditoria",
+        params={"entidad": "Reserva", "accion": "CONFIRMAR"},
+        headers=admin_headers,
+    )
+    assert auditoria.status_code == 200
+    assert auditoria.json()["total"] == 1
+
+    registro = auditoria.json()["items"][0]
+    assert registro["usuarioId"] == recepcion_user.id
+    assert registro["usuarioId"] != creador.id
+    assert registro["detalle"]["estado_anterior"] == "PENDIENTE"
+    assert registro["detalle"]["estado_nuevo"] == "CONFIRMADA"
+
+
+def test_si_falla_la_auditoria_el_estado_de_la_reserva_no_cambia(
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """Si el registro de auditoría falla, la transición se revierte por completo."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1502, estado=EstadoReserva.PENDIENTE)
+
+    def _falla(*args, **kwargs):
+        raise RuntimeError("falla el registro de auditoria")
+
+    monkeypatch.setattr(auditoria_service, "registrar_auditoria", _falla)
+
+    with pytest.raises(RuntimeError, match="falla el registro de auditoria"):
+        reserva_service.confirmar_reserva(db_session, reserva.id, 1, HOY)
+
+    # La misma sesión debe seguir viendo el estado original: sin rollback el
+    # cambio quedaría pendiente en el identity map y se volvería a persistir.
+    assert reserva.estado == EstadoReserva.PENDIENTE
+    assert db_session.get(Reserva, reserva.id).estado == EstadoReserva.PENDIENTE
