@@ -216,34 +216,57 @@ def _recargar_reserva_bloqueada(db: Session, reserva_id: int) -> Reserva | None:
     ).scalar_one_or_none()
 
 
-def _bloquear_habitacion_de_reserva(db: Session, reserva: Reserva) -> Habitacion:
-    """Bloquea la habitación de la reserva y fija la reserva bajo ese bloqueo.
+def _bloquear_habitacion_de_reserva(
+    db: Session,
+    reserva: Reserva,
+    habitacion_adicional_id: int | None = None,
+) -> dict[int, Habitacion]:
+    """Bloquea las habitaciones implicadas y fija la reserva con SELECT FOR UPDATE.
 
-    Orden deliberado (habitación -> reserva) para no deadlockear:
+    Orden de bloqueo: en la primera pasada las habitaciones se bloquean por
+    `habitacion.id` ascendente, y siempre habitación antes que reserva. Ese orden
+    total y estable es lo que evita deadlocks: dos peticiones que se crucen (mover la
+    reserva A->B y a la vez B->A) terminan tomando los mismos bloqueos en la misma
+    secuencia, así que una espera a la otra en vez de formarse un ciclo. Por eso la
+    habitación destino de un PUT se bloquea junto con la actual en este mismo paso, y
+    no después.
 
-    1. El llamador leyó la reserva sin bloqueo solo para conocer `habitacion_id`.
-    2. Se bloquea esa habitación con SELECT FOR UPDATE.
-    3. Se relee la reserva con SELECT FOR UPDATE, ya con la habitación bloqueada.
-    4. Si `habitacion_id` cambió entre los pasos 2 y 3, se realinea: se bloquea la
-       habitación correcta y se vuelve a releer la reserva. Se opta por realinear en
-       lugar de fallar de inmediato porque la reserva aún no está bloqueada al
-       empezar, así que moverla es una carrera legítima y acotada; el bucle está
-       limitado por MAX_INTENTOS_BLOQUEO y, si no converge, se devuelve 409
-       indicando que hay que reintentar.
+    Excepción acotada: si la reserva cambia de habitación mientras se bloquea, el
+    reintento puede tomar una habitación con id menor que otra ya retenida, porque los
+    bloqueos adquiridos no se sueltan. Es una carrera muy improbable y está acotada
+    por MAX_INTENTOS_BLOQUEO; en PostgreSQL un deadlock lo resolvería abortando una
+    de las dos transacciones.
+
+    `habitacion_adicional_id` es la habitación destino de un cambio; si es None solo
+    se bloquea la actual. El valor devuelto son las habitaciones bloqueadas, indexadas
+    por id, para que el llamante use las que necesite.
 
     Cuando esta función devuelve, la reserva permanece bloqueada hasta el commit, de
-    modo que la transición se valida sobre el estado real y no sobre un estado viejo
+    modo que las reglas se validan sobre el estado real y no sobre un estado viejo
     que otra petición pudiera cambiar entre la validación y el commit.
     """
-    habitacion_id = reserva.habitacion_id
+    pendientes = {reserva.habitacion_id}
+    if habitacion_adicional_id is not None:
+        pendientes.add(habitacion_adicional_id)
+
+    bloqueadas: dict[int, Habitacion] = {}
     for _intento in range(MAX_INTENTOS_BLOQUEO):
-        habitacion = _habitacion_para_reserva(db, habitacion_id)
+        # sorted() garantiza el orden ascendente por id en cada intento.
+        for habitacion_id in sorted(pendientes):
+            if habitacion_id not in bloqueadas:
+                bloqueadas[habitacion_id] = _habitacion_para_reserva(db, habitacion_id)
+
         reserva_fijada = _recargar_reserva_bloqueada(db, reserva.id)
         if reserva_fijada is None:
             raise ReservaNoEncontradaError
-        if reserva_fijada.habitacion_id == habitacion_id:
-            return habitacion
-        habitacion_id = reserva_fijada.habitacion_id
+        if reserva_fijada.habitacion_id in bloqueadas:
+            return bloqueadas
+
+        # La reserva cambió de habitación mientras bloqueábamos: se añade la nueva al
+        # conjunto. Los bloqueos ya adquiridos se conservan, así que no se vuelven a
+        # tomar y la habitación nueva puede quedar por debajo de una ya retenida.
+        pendientes.add(reserva_fijada.habitacion_id)
+
     raise ConflictoError(
         "La habitacion de la reserva cambio mientras se bloqueaba; reintenta"
     )
@@ -570,10 +593,21 @@ def actualizar_reserva(
     original) y el total_estimado se recalcula como noches × precio_noche_aplicado.
     Si solo cambian el huesped, los huespedes o las observaciones, el precio
     congelado y el total se mantienen.
+
+    La reserva se lee sin bloqueo solo para conocer qué habitaciones bloquear; la
+    fila de la reserva y las habitaciones quedan bloqueadas antes de validar nada,
+    de modo que la edición no compite con una transición concurrente.
     """
+    # (a) Lectura sin bloqueo: solo para conocer las habitaciones implicadas.
     reserva = db.get(Reserva, reserva_id)
     if reserva is None:
         raise ReservaNoEncontradaError
+
+    # (b)-(d) Bloquear, en orden ascendente por id, la habitación actual y la
+    # destino si el PUT la cambia, y fijar la reserva con SELECT FOR UPDATE.
+    habitaciones = _bloquear_habitacion_de_reserva(db, reserva, datos.habitacion_id)
+
+    # (e) Validar con la reserva bloqueada y con los bloqueos ya tomados.
     if reserva.estado not in ESTADOS_EDITABLES:
         raise ReservaNoEditableError(reserva.estado)
 
@@ -596,7 +630,9 @@ def actualizar_reserva(
     if huesped is None:
         raise HuespedNoEncontradoError
 
-    habitacion = _habitacion_para_reserva(db, habitacion_id)
+    # Si el PUT cambia de habitación, el destino ya está bloqueado junto con la
+    # actual, así que aquí se usa directamente el del PUT.
+    habitacion = habitaciones[habitacion_id]
     if not _es_activa(habitacion):
         raise HabitacionInactivaError
     if habitacion.capacidad < numero_huespedes:
@@ -610,6 +646,7 @@ def actualizar_reserva(
     ):
         raise ReservaSolapadaError
 
+    # Se calcula antes de mutar: depende de los valores recargados, no de los nuevos.
     cambian_fechas_o_habitacion = (
         fecha_entrada != reserva.fecha_entrada
         or fecha_salida != reserva.fecha_salida
@@ -703,7 +740,8 @@ def confirmar_reserva(
         raise ReservaNoEncontradaError
 
     # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
-    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
+    habitaciones = _bloquear_habitacion_de_reserva(db, reserva)
+    habitacion = habitaciones[reserva.habitacion_id]
 
     # (e) Validar transición sobre el estado bloqueado y vigente.
     _validar_transicion(reserva, EstadoReserva.CONFIRMADA)
@@ -751,7 +789,8 @@ def cancelar_reserva(
         raise ReservaNoEncontradaError
 
     # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
-    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
+    habitaciones = _bloquear_habitacion_de_reserva(db, reserva)
+    habitacion = habitaciones[reserva.habitacion_id]
 
     # (e) Validar transición sobre el estado bloqueado y vigente.
     _validar_transicion(reserva, EstadoReserva.CANCELADA)
@@ -785,7 +824,8 @@ def no_show_reserva(
         raise ReservaNoEncontradaError
 
     # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
-    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
+    habitaciones = _bloquear_habitacion_de_reserva(db, reserva)
+    habitacion = habitaciones[reserva.habitacion_id]
 
     # (e) Validar transición PRIMERO, sobre el estado bloqueado y vigente.
     _validar_transicion(reserva, EstadoReserva.NO_SHOW)
