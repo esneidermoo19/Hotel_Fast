@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from pydantic import Field, field_serializer
 
-from app.models.habitacion import EstadoHabitacion, TipoHabitacion
+from app.models.habitacion import EstadoHabitacion, EstadoLimpieza, TipoHabitacion
 from app.schemas.base import CamelCaseSchema
 
 
@@ -24,8 +24,13 @@ class HabitacionEstado(CamelCaseSchema):
     estado: EstadoHabitacion
 
 
+class HabitacionLimpieza(CamelCaseSchema):
+    limpieza: EstadoLimpieza
+
+
 class HabitacionRead(HabitacionCreate):
     id: int
+    limpieza: EstadoLimpieza
     created_at: datetime
     updated_at: datetime
 
