@@ -1661,3 +1661,84 @@ def test_no_show_rechaza_si_otra_peticion_cambio_el_estado(
     assert "CANCELADA" in str(excinfo.value)
     db_session.expire_all()
     assert reserva.estado == EstadoReserva.CANCELADA
+
+
+# --- PUT: la edición también valida con la reserva bloqueada -------------------
+
+
+def test_editar_rechaza_si_otra_peticion_cambio_el_estado(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """El PUT valida el estado recargado: si otra petición canceló, responde no editable."""
+    reserva, _, _, _ = _crear(db=db_session, numero=1701, estado=EstadoReserva.PENDIENTE)
+    _simular_cambio_de_estado_por_otra_peticion(monkeypatch, reserva.id)
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"observaciones": "Intento de edicion tardio"},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RESERVA_NO_EDITABLE"
+    assert "CANCELADA" in response.json()["detail"]
+
+    # La petición falla y con ella se revierte el UPDATE inyectado, así que
+    # lo que se comprueba es que la edición NO se aplicó.
+    db_session.expire_all()
+    assert reserva.estado == EstadoReserva.PENDIENTE
+    assert reserva.observaciones != "Intento de edicion tardio"
+
+
+def test_editar_cambio_de_habitacion_bloquea_en_orden_ascendente(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    db_session: Session,
+    hoy_fijo,
+    monkeypatch,
+) -> None:
+    """Al cambiar de habitación se bloquean origen y destino por id ascendente.
+
+    Se mueve la reserva de una habitación con id mayor a otra con id menor: un orden
+    "actual y luego destino" daría una secuencia descendente, que es exactamente la
+    que permite el deadlock entre dos PUT que se crucen.
+    """
+    destino = crear_habitacion(db_session, numero=1702)
+    origen = crear_habitacion(db_session, numero=1703)
+    assert destino.id < origen.id
+
+    reserva = crear_reserva(
+        db_session,
+        huesped=crear_huesped(db_session),
+        habitacion=origen,
+        usuario=crear_usuario(db_session, username="u1704", email="u1704@ex.com"),
+        codigo="RES-2026-001704",
+        fecha_entrada=HOY,
+        fecha_salida=HOY + timedelta(days=3),
+        estado=EstadoReserva.PENDIENTE,
+    )
+    assert reserva.habitacion_id == origen.id
+
+    orden_bloqueos: list[int] = []
+    original = reserva_service._habitacion_para_reserva
+
+    def _registradora(session: Session, habitacion_id: int):
+        orden_bloqueos.append(habitacion_id)
+        return original(session, habitacion_id)
+
+    monkeypatch.setattr(reserva_service, "_habitacion_para_reserva", _registradora)
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"habitacionId": destino.id},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["habitacion"]["id"] == destino.id
+    # Ambas habitaciones se bloquean, y en orden ascendente por id.
+    assert orden_bloqueos == sorted({destino.id, origen.id})
