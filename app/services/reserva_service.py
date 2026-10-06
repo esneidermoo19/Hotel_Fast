@@ -54,6 +54,10 @@ TRANSICIONES_VALIDAS = {
     EstadoReserva.CONFIRMADA: {EstadoReserva.CANCELADA, EstadoReserva.NO_SHOW},
 }
 
+# Intentos máximos para realinear la habitación bloqueada con la de la reserva
+# cuando esta cambia entre la lectura inicial y el bloqueo.
+MAX_INTENTOS_BLOQUEO = 3
+
 # Acciones de auditoría para cada transición de estado de una reserva.
 # Siguen la convención de verbo suelto usada en el resto del proyecto
 # (CREATE/UPDATE en reservas, ANULAR en consumos y pagos).
@@ -195,6 +199,54 @@ def _validar_transicion(reserva: Reserva, destino: EstadoReserva) -> None:
     destinos = TRANSICIONES_VALIDAS.get(reserva.estado)
     if destinos is None or destino not in destinos:
         raise TransicionInvalidaError(reserva.estado, destino)
+
+
+def _recargar_reserva_bloqueada(db: Session, reserva_id: int) -> Reserva | None:
+    """Relee la reserva con SELECT FOR UPDATE y refresca el objeto ya cargado.
+
+    `populate_existing` fuerza a sobrescribir los atributos del objeto del identity
+    map con los de la fila recién leída. Sin esto, un `db.get()` previo deja el
+    estado viejo en memoria y la validación se haría sobre datos obsoletos.
+    """
+    return db.execute(
+        select(Reserva)
+        .where(Reserva.id == reserva_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    ).scalar_one_or_none()
+
+
+def _bloquear_habitacion_de_reserva(db: Session, reserva: Reserva) -> Habitacion:
+    """Bloquea la habitación de la reserva y fija la reserva bajo ese bloqueo.
+
+    Orden deliberado (habitación -> reserva) para no deadlockear:
+
+    1. El llamador leyó la reserva sin bloqueo solo para conocer `habitacion_id`.
+    2. Se bloquea esa habitación con SELECT FOR UPDATE.
+    3. Se relee la reserva con SELECT FOR UPDATE, ya con la habitación bloqueada.
+    4. Si `habitacion_id` cambió entre los pasos 2 y 3, se realinea: se bloquea la
+       habitación correcta y se vuelve a releer la reserva. Se opta por realinear en
+       lugar de fallar de inmediato porque la reserva aún no está bloqueada al
+       empezar, así que moverla es una carrera legítima y acotada; el bucle está
+       limitado por MAX_INTENTOS_BLOQUEO y, si no converge, se devuelve 409
+       indicando que hay que reintentar.
+
+    Cuando esta función devuelve, la reserva permanece bloqueada hasta el commit, de
+    modo que la transición se valida sobre el estado real y no sobre un estado viejo
+    que otra petición pudiera cambiar entre la validación y el commit.
+    """
+    habitacion_id = reserva.habitacion_id
+    for _intento in range(MAX_INTENTOS_BLOQUEO):
+        habitacion = _habitacion_para_reserva(db, habitacion_id)
+        reserva_fijada = _recargar_reserva_bloqueada(db, reserva.id)
+        if reserva_fijada is None:
+            raise ReservaNoEncontradaError
+        if reserva_fijada.habitacion_id == habitacion_id:
+            return habitacion
+        habitacion_id = reserva_fijada.habitacion_id
+    raise ConflictoError(
+        "La habitacion de la reserva cambio mientras se bloqueaba; reintenta"
+    )
 
 
 def _es_activa(habitacion: Habitacion) -> bool:
@@ -641,26 +693,25 @@ def confirmar_reserva(
 
     Revalida que la habitacion siga activa y que no haya solapamiento
     (excluyendo la propia reserva). La entrada no puede ser anterior a hoy.
+
+    La transición se valida con la reserva ya bloqueada para no confirmar sobre un
+    estado que otra petición haya cambiado mientras tanto.
     """
+    # (a) Lectura sin bloqueo: solo sirve para conocer la habitacion a bloquear.
     reserva = db.get(Reserva, reserva_id)
     if reserva is None:
         raise ReservaNoEncontradaError
 
-    # Validar transición
+    # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
+    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
+
+    # (e) Validar transición sobre el estado bloqueado y vigente.
     _validar_transicion(reserva, EstadoReserva.CONFIRMADA)
 
-    # Bloquear habitación y recargar reserva
-    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
-    db.refresh(
-        reserva,
-        attribute_names=["estado", "fecha_entrada", "fecha_salida", "habitacion_id"],
-    )
-
-    # Revalidar habitación activa
+    # (g) Reglas propias de la confirmación.
     if not _es_activa(habitacion):
         raise HabitacionInactivaError
 
-    # Revalidar solapamiento excluyendo la propia reserva
     if _existe_solapamiento(
         db,
         habitacion.id,
@@ -670,10 +721,11 @@ def confirmar_reserva(
     ):
         raise ReservaSolapadaError
 
-    # Entrada en el pasado (incluye misma fecha? El mismo día SÍ se permite)
+    # El mismo día SÍ se permite.
     if reserva.fecha_entrada < hoy:
         raise EntradaEnPasadoError(hoy)
 
+    # (h) Cambio de estado y auditoría en una sola transacción.
     return _cambiar_estado_y_auditar(
         db,
         reserva,
@@ -698,12 +750,11 @@ def cancelar_reserva(
     if reserva is None:
         raise ReservaNoEncontradaError
 
-    # Validar transición
-    _validar_transicion(reserva, EstadoReserva.CANCELADA)
+    # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
+    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
 
-    # Bloquear habitación y recargar reserva
-    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
-    db.refresh(reserva, attribute_names=["estado"])
+    # (e) Validar transición sobre el estado bloqueado y vigente.
+    _validar_transicion(reserva, EstadoReserva.CANCELADA)
 
     # Motivo ya viene validado y stripeado por el schema
     motivo = datos.motivo
@@ -733,16 +784,15 @@ def no_show_reserva(
     if reserva is None:
         raise ReservaNoEncontradaError
 
-    # Validar transición PRIMERO
+    # (b)-(d) Bloquear la habitacion y fijar la reserva con SELECT FOR UPDATE.
+    habitacion = _bloquear_habitacion_de_reserva(db, reserva)
+
+    # (e) Validar transición PRIMERO, sobre el estado bloqueado y vigente.
     _validar_transicion(reserva, EstadoReserva.NO_SHOW)
 
-    # Luego validar fecha
+    # (f) Solo después de la transición se evalúa la fecha de entrada.
     if hoy < reserva.fecha_entrada:
         raise NoShowAntesDeFechaError(reserva.fecha_entrada)
-
-    # Bloquear habitación y recargar reserva
-    habitacion = _habitacion_para_reserva(db, reserva.habitacion_id)
-    db.refresh(reserva, attribute_names=["estado", "fecha_entrada"])
 
     return _cambiar_estado_y_auditar(
         db,
