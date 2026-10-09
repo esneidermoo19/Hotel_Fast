@@ -3,10 +3,14 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_front/catalogos/catalogos_service.dart';
+import 'package:hotel_front/consumos/consumos_service.dart';
+import 'package:hotel_front/cuentas/cuentas_service.dart';
 import 'package:hotel_front/huespedes/huespedes_service.dart';
+import 'package:hotel_front/pagos/pagos_service.dart';
 import 'package:hotel_front/reservas/reservas_service.dart';
 import 'package:hotel_front/reservas/reservas_view.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import '../support/auth_test_utils.dart';
 
@@ -77,7 +81,11 @@ Future<CatalogosService> _catalogosCargados() async {
   return servicio;
 }
 
-Widget _envoltura(ReservasService servicio, CatalogosService catalogos) {
+Widget _envoltura(
+  ReservasService servicio,
+  CatalogosService catalogos, {
+  MockClientHandler? cuentaHandler,
+}) {
   final huespedes = HuespedesService(
     crearApiSimulada((request) async {
       return http.Response(
@@ -91,12 +99,26 @@ Widget _envoltura(ReservasService servicio, CatalogosService catalogos) {
       );
     }),
   );
+  final cuentas = CuentasService(
+    crearApiSimulada(
+      cuentaHandler ?? (request) async => http.Response('{}', 200),
+    ),
+  );
+  final consumos = ConsumosService(
+    crearApiSimulada((request) async => http.Response('{}', 201)),
+  );
+  final pagos = PagosService(
+    crearApiSimulada((request) async => http.Response('{}', 201)),
+  );
   return MaterialApp(
     home: Scaffold(
       body: ReservasView(
         service: servicio,
         catalogos: catalogos,
         huespedes: huespedes,
+        cuentas: cuentas,
+        consumos: consumos,
+        pagos: pagos,
       ),
     ),
   );
@@ -182,4 +204,64 @@ void main() {
     expect(find.text('Crear reserva'), findsOneWidget);
     expect(find.text('Ver disponibilidad'), findsOneWidget);
   });
+
+  testWidgets('el detalle muestra la cuenta de la reserva', (tester) async {
+    final servicio = ReservasService(
+      crearApiSimulada(
+        (request) async => http.Response(_paginaJson(estado: 'CHECK_IN'), 200),
+      ),
+    );
+
+    await tester.pumpWidget(
+      _envoltura(
+        servicio,
+        await _catalogosCargados(),
+        cuentaHandler: _cuentaJson,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('RES-001'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Cuenta y pagos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cuenta y pagos'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Total cuenta'), findsOneWidget);
+    expect(find.text('Saldo pendiente'), findsOneWidget);
+    expect(find.text('Registrar consumo'), findsOneWidget);
+    expect(find.text('Registrar pago'), findsOneWidget);
+    expect(find.text('Minibar'), findsOneWidget);
+  });
+}
+
+Future<http.Response> _cuentaJson(http.Request request) async {
+  return http.Response(
+    jsonEncode({
+      'totalAlojamiento': 100.0,
+      'totalConsumosVigentes': 30.0,
+      'totalPagosVigentes': 50.0,
+      'saldoPendiente': 80.0,
+      'detalleConsumos': [
+        {
+          'id': 1,
+          'descripcion': 'Minibar',
+          'cantidad': 2,
+          'precioUnitario': 15.0,
+          'anulado': false,
+        },
+      ],
+      'detallePagos': [
+        {
+          'id': 1,
+          'monto': 50.0,
+          'metodo': 'EFECTIVO',
+          'tipo': 'ABONO',
+          'anulado': false,
+          'fechaPago': '2026-10-10T14:00:00Z',
+        },
+      ],
+    }),
+    200,
+  );
 }

@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../catalogos/catalogos_service.dart';
+import '../consumos/consumos_service.dart';
 import '../core/network/api_exception.dart';
+import '../cuentas/cuentas_service.dart';
+import '../cuentas/models/consumo.dart';
+import '../cuentas/models/cuenta.dart';
+import '../cuentas/models/pago.dart';
 import '../huespedes/huespedes_service.dart';
 import '../huespedes/models/huesped.dart';
+import '../pagos/pagos_service.dart';
 import '../shared/models/pagina.dart';
 import '../shared/utils/fecha_hora.dart';
 import '../shared/utils/formato.dart';
@@ -14,18 +20,24 @@ import 'models/reserva.dart';
 import 'reservas_service.dart';
 
 /// Vista del modulo de reservas: listado con filtros, nueva reserva con
-/// disponibilidad y detalle con acciones de ciclo de vida.
+/// disponibilidad y detalle con acciones de ciclo de vida y cuenta/pagos.
 class ReservasView extends StatefulWidget {
   const ReservasView({
     super.key,
     required this.service,
     required this.catalogos,
     required this.huespedes,
+    required this.cuentas,
+    required this.consumos,
+    required this.pagos,
   });
 
   final ReservasService service;
   final CatalogosService catalogos;
   final HuespedesService huespedes;
+  final CuentasService cuentas;
+  final ConsumosService consumos;
+  final PagosService pagos;
 
   @override
   State<ReservasView> createState() => _ReservasViewState();
@@ -89,8 +101,14 @@ class _ReservasViewState extends State<ReservasView> {
   Future<void> _abrirDetalle(Reserva reserva) async {
     await showDialog<void>(
       context: context,
-      builder: (_) =>
-          _DialogoDetalleReserva(reserva: reserva, service: widget.service),
+      builder: (_) => _DialogoDetalleReserva(
+        reserva: reserva,
+        service: widget.service,
+        catalogos: widget.catalogos,
+        cuentas: widget.cuentas,
+        consumos: widget.consumos,
+        pagos: widget.pagos,
+      ),
     );
     if (mounted) _recargar();
   }
@@ -330,10 +348,21 @@ class _EtiquetaEstado extends StatelessWidget {
 }
 
 class _DialogoDetalleReserva extends StatefulWidget {
-  const _DialogoDetalleReserva({required this.reserva, required this.service});
+  const _DialogoDetalleReserva({
+    required this.reserva,
+    required this.service,
+    required this.catalogos,
+    required this.cuentas,
+    required this.consumos,
+    required this.pagos,
+  });
 
   final Reserva reserva;
   final ReservasService service;
+  final CatalogosService catalogos;
+  final CuentasService cuentas;
+  final ConsumosService consumos;
+  final PagosService pagos;
 
   @override
   State<_DialogoDetalleReserva> createState() => _DialogoDetalleReservaState();
@@ -527,6 +556,19 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
     ];
   }
 
+  Future<void> _abrirCuenta() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _DialogoCuenta(
+        reservaId: _reserva.id,
+        catalogos: widget.catalogos,
+        cuentas: widget.cuentas,
+        consumos: widget.consumos,
+        pagos: widget.pagos,
+      ),
+    );
+  }
+
   List<(String, VoidCallback)> get _acciones {
     return switch (_reserva.estado) {
       'PENDIENTE' => [('Confirmar', _confirmar), ('Cancelar', _cancelar)],
@@ -563,6 +605,12 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
                     ),
                 ],
               ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _abrirCuenta,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('Cuenta y pagos'),
+            ),
           ],
         ),
       ),
@@ -945,6 +993,536 @@ class _BotonFecha extends StatelessWidget {
       onPressed: alPulsar,
       icon: const Icon(Icons.event_outlined),
       label: Text(texto),
+    );
+  }
+}
+
+/// Estado de cuenta de la reserva con historial de consumos y pagos.
+class _DialogoCuenta extends StatefulWidget {
+  const _DialogoCuenta({
+    required this.reservaId,
+    required this.catalogos,
+    required this.cuentas,
+    required this.consumos,
+    required this.pagos,
+  });
+
+  final int reservaId;
+  final CatalogosService catalogos;
+  final CuentasService cuentas;
+  final ConsumosService consumos;
+  final PagosService pagos;
+
+  @override
+  State<_DialogoCuenta> createState() => _DialogoCuentaState();
+}
+
+class _DialogoCuentaState extends State<_DialogoCuenta> {
+  CuentaReserva? _cuenta;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() {
+      _cuenta = null;
+      _error = null;
+    });
+    try {
+      final cuenta = await widget.cuentas.obtener(widget.reservaId);
+      if (!mounted) return;
+      setState(() => _cuenta = cuenta);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() => _error = error.mensaje);
+    }
+  }
+
+  Future<void> _registrarConsumo() async {
+    final registrado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DialogoRegistrarConsumo(
+        service: widget.consumos,
+        reservaId: widget.reservaId,
+      ),
+    );
+    if (registrado == true) await _cargar();
+  }
+
+  Future<void> _registrarPago() async {
+    final registrado = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _DialogoRegistrarPago(
+        service: widget.pagos,
+        catalogos: widget.catalogos,
+        reservaId: widget.reservaId,
+      ),
+    );
+    if (registrado == true) await _cargar();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Cuenta y pagos'),
+      content: SizedBox(
+        width: 480,
+        child: _cuenta == null ? _cargandoOError(tema) : _contenido(tema),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cerrar'),
+        ),
+      ],
+    );
+  }
+
+  Widget _cargandoOError(ThemeData tema) {
+    if (_error != null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(_error!, style: TextStyle(color: tema.colorScheme.error)),
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: _cargar,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reintentar'),
+          ),
+        ],
+      );
+    }
+    return const Center(child: CircularProgressIndicator());
+  }
+
+  Widget _contenido(ThemeData tema) {
+    final cuenta = _cuenta!;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: _registrarConsumo,
+                icon: const Icon(Icons.add_shopping_cart_outlined),
+                label: const Text('Registrar consumo'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: _registrarPago,
+                icon: const Icon(Icons.payment_outlined),
+                label: const Text('Registrar pago'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _ResumenCuenta(cuenta: cuenta),
+          const SizedBox(height: 16),
+          Text('Consumos', style: tema.textTheme.titleSmall),
+          if (cuenta.detalleConsumos.isEmpty)
+            const Text('Sin consumos')
+          else
+            for (final consumo in cuenta.detalleConsumos)
+              _FilaConsumo(consumo: consumo),
+          const SizedBox(height: 16),
+          Text('Pagos', style: tema.textTheme.titleSmall),
+          if (cuenta.detallePagos.isEmpty)
+            const Text('Sin pagos')
+          else
+            for (final pago in cuenta.detallePagos) _FilaPago(pago: pago),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResumenCuenta extends StatelessWidget {
+  const _ResumenCuenta({required this.cuenta});
+
+  final CuentaReserva cuenta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _FilaEconomica('Hospedaje', cuenta.totalAlojamiento),
+        _FilaEconomica('Consumos vigentes', cuenta.totalConsumosVigentes),
+        _FilaEconomica('Total cuenta', cuenta.totalCuenta),
+        _FilaEconomica('Total pagado', cuenta.totalPagosVigentes),
+        _FilaEconomica('Saldo pendiente', cuenta.saldoPendiente),
+      ],
+    );
+  }
+}
+
+class _FilaConsumo extends StatelessWidget {
+  const _FilaConsumo({required this.consumo});
+
+  final Consumo consumo;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(consumo.descripcion),
+                Text(
+                  '${consumo.cantidad} x ${formatearMonto(consumo.precioUnitario)}',
+                  style: tema.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(formatearMonto(consumo.total)),
+              if (consumo.anulado)
+                Text(
+                  'ANULADO',
+                  style: TextStyle(color: tema.colorScheme.error, fontSize: 11),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilaPago extends StatelessWidget {
+  const _FilaPago({required this.pago});
+
+  final Pago pago;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${humanizar(pago.metodo)} · ${humanizar(pago.tipo)}'),
+                if (pago.referencia != null)
+                  Text(pago.referencia!, style: tema.textTheme.bodySmall),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(formatearMonto(pago.monto)),
+              if (pago.anulado)
+                Text(
+                  'ANULADO',
+                  style: TextStyle(color: tema.colorScheme.error, fontSize: 11),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DialogoRegistrarConsumo extends StatefulWidget {
+  const _DialogoRegistrarConsumo({
+    required this.service,
+    required this.reservaId,
+  });
+
+  final ConsumosService service;
+  final int reservaId;
+
+  @override
+  State<_DialogoRegistrarConsumo> createState() =>
+      _DialogoRegistrarConsumoState();
+}
+
+class _DialogoRegistrarConsumoState extends State<_DialogoRegistrarConsumo> {
+  final _formKey = GlobalKey<FormState>();
+  final _descripcion = TextEditingController();
+  final _cantidad = TextEditingController(text: '1');
+  final _precio = TextEditingController();
+  bool _enviando = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _descripcion.dispose();
+    _cantidad.dispose();
+    _precio.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+    try {
+      await widget.service.registrar(
+        widget.reservaId,
+        ConsumoRequest(
+          descripcion: _descripcion.text.trim(),
+          cantidad: int.parse(_cantidad.text.trim()),
+          precioUnitario: double.parse(_precio.text.trim()),
+        ),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.esValidacion && error.mensajesPorCampo.isNotEmpty
+            ? error.mensajesPorCampo.values.first
+            : error.mensaje;
+        _enviando = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Registrar consumo'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _descripcion,
+              decoration: const InputDecoration(labelText: 'Descripcion'),
+              validator: (valor) => (valor == null || valor.trim().isEmpty)
+                  ? 'Ingresa la descripcion'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _cantidad,
+              decoration: const InputDecoration(labelText: 'Cantidad'),
+              keyboardType: TextInputType.number,
+              validator: (valor) {
+                final numero = int.tryParse(valor ?? '');
+                return (numero == null || numero < 1)
+                    ? 'Cantidad invalida'
+                    : null;
+              },
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _precio,
+              decoration: const InputDecoration(
+                labelText: 'Precio unitario (COP)',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              validator: (valor) {
+                final numero = double.tryParse(valor ?? '');
+                return (numero == null || numero <= 0)
+                    ? 'Precio invalido'
+                    : null;
+              },
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _enviando ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _enviando ? null : _guardar,
+          child: _enviando
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DialogoRegistrarPago extends StatefulWidget {
+  const _DialogoRegistrarPago({
+    required this.service,
+    required this.catalogos,
+    required this.reservaId,
+  });
+
+  final PagosService service;
+  final CatalogosService catalogos;
+  final int reservaId;
+
+  @override
+  State<_DialogoRegistrarPago> createState() => _DialogoRegistrarPagoState();
+}
+
+class _DialogoRegistrarPagoState extends State<_DialogoRegistrarPago> {
+  final _formKey = GlobalKey<FormState>();
+  final _monto = TextEditingController();
+  final _referencia = TextEditingController();
+  late String _metodo;
+  late String _tipo;
+  bool _enviando = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final metodos = widget.catalogos.valores('metodos_pago');
+    final tipos = widget.catalogos.valores('tipos_pago');
+    _metodo = metodos.isEmpty ? '' : metodos.first;
+    _tipo = tipos.isEmpty ? 'ABONO' : tipos.first;
+  }
+
+  @override
+  void dispose() {
+    _monto.dispose();
+    _referencia.dispose();
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+    try {
+      await widget.service.registrar(
+        widget.reservaId,
+        PagoRequest(
+          monto: double.parse(_monto.text.trim()),
+          metodo: _metodo,
+          tipo: _tipo,
+          referencia: _referencia.text.trim().isEmpty
+              ? null
+              : _referencia.text.trim(),
+        ),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.esValidacion && error.mensajesPorCampo.isNotEmpty
+            ? error.mensajesPorCampo.values.first
+            : error.mensaje;
+        _enviando = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final metodos = widget.catalogos.valores('metodos_pago');
+    final tipos = widget.catalogos.valores('tipos_pago');
+    return AlertDialog(
+      title: const Text('Registrar pago'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _monto,
+              decoration: const InputDecoration(labelText: 'Monto (COP)'),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              validator: (valor) {
+                final numero = double.tryParse(valor ?? '');
+                return (numero == null || numero <= 0)
+                    ? 'Monto invalido'
+                    : null;
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _metodo,
+              decoration: const InputDecoration(labelText: 'Metodo de pago'),
+              items: [
+                for (final metodo in metodos)
+                  DropdownMenuItem(value: metodo, child: Text(metodo)),
+              ],
+              onChanged: (valor) => setState(() => _metodo = valor ?? _metodo),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _tipo,
+              decoration: const InputDecoration(labelText: 'Tipo'),
+              items: [
+                for (final tipo in tipos)
+                  DropdownMenuItem(value: tipo, child: Text(humanizar(tipo))),
+              ],
+              onChanged: (valor) => setState(() => _tipo = valor ?? _tipo),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _referencia,
+              decoration: const InputDecoration(
+                labelText: 'Referencia (opcional)',
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _enviando ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _enviando ? null : _guardar,
+          child: _enviando
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

@@ -4,12 +4,11 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4 y 5 completadas**. Login,
-sesion con guardas por rol, shell, dashboard, catalogos cacheados y los modulos
-de Habitaciones, Huespedes y Reservas (ciclo de vida completo: disponibilidad,
-creacion, confirmar/cancelar/no-show/check-in/check-out/extender), todo en
-Material 3 sin librerias de UI. Proximas entregas: Fase 6 (consumos, pagos y
-cuenta) y el resto de los modulos.
+Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4, 5 y 6 completadas**.
+Login, sesion con guardas por rol, shell, dashboard, catalogos cacheados y los
+modulos de Habitaciones, Huespedes, Reservas (ciclo de vida completo) y Cuenta
+de reserva (consumos, pagos y estado de cuenta), todo en Material 3 sin
+librerias de UI. Proximas entregas: Usuarios/Auditoria (ADMIN) y el resto.
 
 ---
 
@@ -272,20 +271,39 @@ Pendiente (Fase 6): consumos, pagos y cuenta dentro del detalle de reserva.
 
 ---
 
-## Fase 6 - Consumos, pagos y cuenta
+## Fase 6 - Consumos, pagos y cuenta (COMPLETADA)
 
 **Endpoints**:
-`GET/POST /api/reservas/{id}/consumos`, `POST .../consumos/{cid}/anular`,
-`GET/POST /api/reservas/{id}/pagos`, `POST .../pagos/{pid}/anular`,
+`POST /api/reservas/{id}/consumos`, `POST /api/reservas/{id}/pagos`,
 `GET /api/cuentas/{reservaId}`.
 
-- Pestana de cuenta dentro del detalle de reserva: alojamiento, consumos, pagos y saldo.
-- Consumos solo si la reserva esta en `CHECK_IN`.
-- Pagos salvo en `CANCELADA`/`NO_SHOW`.
-- Anular consumo/pago solo `ADMIN`, con motivo.
-- Listados con `soloVigentes` y paginacion.
+Entregado:
 
-**Criterio de cierre**: cuenta cuadra contra `/api/cuentas`.
+- **Modelos** (`lib/cuentas/models/`): `Consumo` (con `total` = unitario x
+  cantidad), `ConsumoRequest`, `Pago` (metodo/tipo/estado de anulacion),
+  `PagoRequest` y `CuentaReserva` (totales y detalle de consumos/pagos).
+- **Servicios** (`lib/cuentas/`, `lib/consumos/`, `lib/pagos/`):
+  `CuentasService.obtener`, `ConsumosService.registrar` y
+  `PagosService.registrar`.
+- **Integracion**: en la ficha de reserva se agrego el boton `Cuenta y pagos`,
+  que abre un dialogo con el resumen (Hospedaje + Consumos = Total, Total
+  pagado y Saldo pendiente), el historial de consumos y pagos (con estado de
+  anulacion), y los formularios `Registrar consumo` (descripcion, cantidad,
+  precio unitario) y `Registrar pago` (monto, catalogo `metodos_pago`/`tipos_pago`
+  precargado, referencia). Las restricciones de estado las valida el backend.
+- **Errores en UI**: los 409 (`REGLA_NEGOCIO`, p. ej. pagos en reserva
+  cancelada/cerrada) y 422 (montos/formatos) se muestran dentro del dialogo o
+  en SnackBar con el `detail` del backend.
+- **Pruebas** (`test/cuentas/`, `test/consumos/`, `test/pagos/`, y en
+  `reservas_view_test`): 7 pruebas de parseo de cuenta, registro de consumo y
+  pago, propagacion de 409 y apertura de la seccion de cuenta desde el detalle.
+
+Pendiente (futuro): anulacion de consumos/pagos (`.../anular`, solo `ADMIN`) y
+listados paginados con `soloVigentes`; la cuenta ya muestra los movimientos
+completos devueltos por `/api/cuentas`.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (122/122) en verde.
 
 ---
 
