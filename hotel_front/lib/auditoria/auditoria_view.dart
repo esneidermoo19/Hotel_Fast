@@ -5,6 +5,8 @@ import '../shared/models/pagina.dart';
 import '../shared/utils/fecha_hora.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/estado_vacio.dart';
+import '../widgets/tarjeta_hover.dart';
 import 'auditoria_service.dart';
 import 'models/auditoria_registro.dart';
 
@@ -87,7 +89,10 @@ class _AuditoriaViewState extends State<AuditoriaView> {
               }
               final pagina = snapshot.data!;
               if (pagina.items.isEmpty) {
-                return const Center(child: Text('No hay registros.'));
+                return const EstadoVacio(
+                  icono: Icons.history_outlined,
+                  mensaje: 'No hay registros.',
+                );
               }
               final totalPaginas = _totalPaginas(pagina);
               return Column(
@@ -138,7 +143,8 @@ class _FilaAuditoria extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return TarjetaHover(
+      onTap: alAbrir,
       child: ListTile(
         onTap: alAbrir,
         title: Text('${registro.accion} · ${registro.entidad}'),

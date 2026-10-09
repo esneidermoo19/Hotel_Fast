@@ -5,6 +5,8 @@ import '../core/network/api_exception.dart';
 import '../shared/models/pagina.dart';
 import '../shared/utils/fecha_hora.dart';
 import '../widgets/aviso_error.dart';
+import '../widgets/estado_vacio.dart';
+import '../widgets/tarjeta_hover.dart';
 import 'huespedes_service.dart';
 import 'models/huesped.dart';
 
@@ -201,8 +203,9 @@ class _HuespedesViewState extends State<HuespedesView> {
               }
               final pagina = snapshot.data!;
               if (pagina.items.isEmpty) {
-                return const Center(
-                  child: Text('No se encontraron huespedes.'),
+                return const EstadoVacio(
+                  icono: Icons.people_outline,
+                  mensaje: 'No se encontraron huespedes.',
                 );
               }
               final totalPaginas = _totalPaginas(pagina);
@@ -273,7 +276,8 @@ class _FilaHuesped extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return TarjetaHover(
+      onTap: alVer,
       child: ListTile(
         leading: CircleAvatar(child: Text(_iniciales)),
         title: Text(huesped.nombreCompleto),

@@ -5,6 +5,9 @@ import '../core/network/api_exception.dart';
 import '../shared/utils/formato.dart';
 import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
+import '../widgets/estado_vacio.dart';
+import '../widgets/pastilla_estado.dart';
+import '../widgets/tarjeta_hover.dart';
 import 'habitaciones_service.dart';
 import 'models/habitacion.dart';
 
@@ -199,7 +202,10 @@ class _HabitacionesViewState extends State<HabitacionesView> {
               }
               final habitaciones = snapshot.data ?? const [];
               if (habitaciones.isEmpty) {
-                return const Center(child: Text('No hay habitaciones.'));
+                return const EstadoVacio(
+                  icono: Icons.meeting_room_outlined,
+                  mensaje: 'No hay habitaciones.',
+                );
               }
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -282,7 +288,7 @@ class _TarjetaHabitacion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    return Card(
+    return TarjetaHover(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -297,7 +303,7 @@ class _TarjetaHabitacion extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                _EtiquetaEstado(estado: habitacion.estado),
+                PastillaEstado(estado: habitacion.estado),
                 PopupMenuButton<String>(
                   tooltip: 'Acciones',
                   onSelected: (accion) {
@@ -363,35 +369,6 @@ class _TarjetaHabitacion extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EtiquetaEstado extends StatelessWidget {
-  const _EtiquetaEstado({required this.estado});
-
-  final String estado;
-
-  Color _color() {
-    return switch (estado) {
-      'DISPONIBLE' => const Color(0xFF2E7D32),
-      'OCUPADA' => const Color(0xFFE64A19),
-      _ => const Color(0xFF546E7A),
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _color(),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        humanizar(estado),
-        style: const TextStyle(color: Colors.white, fontSize: 12),
       ),
     );
   }

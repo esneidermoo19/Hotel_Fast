@@ -16,6 +16,9 @@ import '../shared/utils/formato.dart';
 import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/estado_vacio.dart';
+import '../widgets/pastilla_estado.dart';
+import '../widgets/tarjeta_hover.dart';
 import 'models/reserva.dart';
 import 'reservas_service.dart';
 
@@ -196,7 +199,10 @@ class _ReservasViewState extends State<ReservasView> {
               }
               final pagina = snapshot.data!;
               if (pagina.items.isEmpty) {
-                return const Center(child: Text('No hay reservas.'));
+                return const EstadoVacio(
+                  icono: Icons.event_available_outlined,
+                  mensaje: 'No hay reservas.',
+                );
               }
               final totalPaginas = _totalPaginas(pagina);
               return Column(
@@ -283,14 +289,15 @@ class _FilaReserva extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context);
-    return Card(
+    return TarjetaHover(
+      onTap: alAbrir,
       child: ListTile(
         onTap: alAbrir,
         title: Row(
           children: [
             Text(reserva.codigo, style: tema.textTheme.titleMedium),
             const SizedBox(width: 8),
-            _EtiquetaEstado(estado: reserva.estado),
+            PastillaEstado(estado: reserva.estado),
           ],
         ),
         subtitle: Column(
@@ -309,39 +316,6 @@ class _FilaReserva extends StatelessWidget {
           ],
         ),
         trailing: const Icon(Icons.chevron_right),
-      ),
-    );
-  }
-}
-
-class _EtiquetaEstado extends StatelessWidget {
-  const _EtiquetaEstado({required this.estado});
-
-  final String estado;
-
-  Color _color() {
-    return switch (estado) {
-      'PENDIENTE' => const Color(0xFF546E7A),
-      'CONFIRMADA' => const Color(0xFF1565C0),
-      'CHECK_IN' => const Color(0xFF2E7D32),
-      'CHECK_OUT' => const Color(0xFF00695C),
-      'CANCELADA' => const Color(0xFFC62828),
-      'NO_SHOW' => const Color(0xFFE65100),
-      _ => const Color(0xFF546E7A),
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: _color(),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        humanizar(estado),
-        style: const TextStyle(color: Colors.white, fontSize: 12),
       ),
     );
   }

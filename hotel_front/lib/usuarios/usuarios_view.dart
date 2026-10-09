@@ -7,6 +7,9 @@ import '../shared/models/pagina.dart';
 import '../shared/utils/formato.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/estado_vacio.dart';
+import '../widgets/pastilla_estado.dart';
+import '../widgets/tarjeta_hover.dart';
 import 'models/usuario_payload.dart';
 import 'usuarios_service.dart';
 
@@ -218,7 +221,10 @@ class _UsuariosViewState extends State<UsuariosView> {
               }
               final pagina = snapshot.data!;
               if (pagina.items.isEmpty) {
-                return const Center(child: Text('No hay usuarios.'));
+                return const EstadoVacio(
+                  icono: Icons.manage_accounts_outlined,
+                  mensaje: 'No hay usuarios.',
+                );
               }
               final totalPaginas = _totalPaginas(pagina);
               return Column(
@@ -278,7 +284,7 @@ class _FilaUsuario extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return TarjetaHover(
       child: ListTile(
         leading: CircleAvatar(
           child: Text(
@@ -293,7 +299,10 @@ class _FilaUsuario extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _EtiquetaActivo(activo: usuario.activo),
+            PastillaEstado(
+              estado: usuario.activo ? 'ACTIVO' : 'INACTIVO',
+              texto: usuario.activo ? 'ACTIVO' : 'INACTIVO',
+            ),
             PopupMenuButton<String>(
               tooltip: 'Acciones',
               onSelected: (accion) {
@@ -317,28 +326,6 @@ class _FilaUsuario extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EtiquetaActivo extends StatelessWidget {
-  const _EtiquetaActivo({required this.activo});
-
-  final bool activo;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = activo ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        activo ? 'ACTIVO' : 'INACTIVO',
-        style: const TextStyle(color: Colors.white, fontSize: 11),
       ),
     );
   }

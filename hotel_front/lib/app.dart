@@ -14,6 +14,7 @@ import 'pagos/pagos_service.dart';
 import 'reservas/reservas_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
+import 'theme/app_theme.dart';
 import 'usuarios/usuarios_service.dart';
 import 'widgets/pantalla_carga.dart';
 
@@ -64,10 +65,9 @@ class _HotelAppState extends State<HotelApp> {
     return MaterialApp(
       title: 'Hotel Fast',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
-      ),
+      theme: AppTheme.luz(),
+      darkTheme: AppTheme.oscura(),
+      themeMode: ThemeMode.system,
       home: AuthScope(
         controller: widget.controller,
         child: AppScope(
