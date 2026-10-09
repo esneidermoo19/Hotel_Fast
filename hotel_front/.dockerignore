@@ -1,0 +1,14 @@
+# Excluye artefactos locales del contexto de construccion de Docker.
+.git
+.github
+.gitignore
+.idea
+*.iml
+.dart_tool
+build
+linux
+macos
+windows
+android
+ios
+test
