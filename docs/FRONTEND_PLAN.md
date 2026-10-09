@@ -4,12 +4,12 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4, 5, 6 y 7 completadas**.
-Login, sesion con guardas por rol, shell, dashboard, catalogos cacheados y los
-modulos de Habitaciones, Huespedes, Reservas (ciclo de vida completo), Cuenta de
-reserva (consumos, pagos y saldo), Usuarios y Auditoria (solo ADMIN), todo en
-Material 3 sin librerias de UI. Quedan solo los modulos sin backend publico
-(reportes/horarios) y las comprobaciones de calidad.
+Estado actual del frontend: **PROYECTO COMPLETADO (Fases 0 a 7)**. Login, sesion
+con guardas por rol, shell, dashboard, catalogos cacheados y los modulos de
+Habitaciones, Huespedes, Reservas (ciclo de vida completo), Cuenta de reserva
+(consumos, pagos y saldo), Usuarios y Auditoria (solo ADMIN), todo en Material 3
+sin librerias de UI. Build Web verificado (`flutter build web`). Ver el resumen
+de cierre al final de este documento.
 
 ---
 
@@ -381,3 +381,39 @@ Entregado:
 6. **Paginacion heterogenea**: algunas listas paginan y otras no; respetar cada caso.
 7. **Errores**: `REGLA_NEGOCIO` llega como 409 (unificado en docs y codigo);
    mapear por `code`, no solo por HTTP.
+
+---
+
+## Resumen de cierre (Fases 0 a 7)
+
+Frontend consolidado en `main` tras fusionar las ramas de caracteristicas de las
+fases 1 a 7 (`feat/modulo-*`).
+
+**Cobertura de pruebas (final)**: **135 pruebas unitarias y de widgets en verde**
+(`flutter test`), incluyendo cliente HTTP e interceptor (401/refresh), errores
+401/403/409/422/429, configuracion, serializacion, paginacion, moneda y fechas,
+login/sesion/shell, dashboard, catalogos y cada modulo de negocio. Sin servidor
+activo: todo con `MockClient` y `SharedPreferences` en memoria.
+
+**Validaciones finales ejecutadas**:
+- `dart format lib test` -> sin cambios pendientes.
+- `flutter analyze` -> **No issues found!**
+- `flutter test` -> **135/135 passed**.
+- `flutter build web` -> **exito** (`√ Built build\web`).
+
+**Estado final de la aplicacion (Web)**:
+- Login por username o correo con sesiones JWT + refresh rotativo e interceptor
+  Bearer; guardas por rol (ADMIN / RECEPCION).
+- Shell responsivo (NavigationRail/Drawer) con modulos: Panel (dashboard),
+  Habitaciones, Huespedes, Reservas (ciclo completo: disponibilidad, creacion,
+  confirmar/cancelar/no-show/check-in/check-out/extender y cuenta con consumos y
+  pagos), Usuarios y Auditoria (solo ADMIN).
+- Catalogos cacheados y formatos de COP/fechas en `shared/utils`.
+
+**Pendiente / siguiente paso**:
+- Modulos `reportes` y `horarios` no se implementan: el backend no expone
+  endpoints (Fase 8).
+- Builds de Android y Windows Desktop (requiere Modo desarrollador para
+  symlinks de plugins en Windows) y el registro del origen real en `CORS_ORIGINS`
+  para produccion.
+- Evaluar almacenamiento seguro de tokens en Web antes de produccion.
