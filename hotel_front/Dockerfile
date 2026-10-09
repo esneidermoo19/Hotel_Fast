@@ -1,9 +1,9 @@
-# Etapa 1: Compilación de Flutter Web usando la imagen oficial de CirrusCI
-FROM ghcr.io/cirrusci/flutter:3.27.0 AS build
+# Etapa 1: Compilación de Flutter Web con imagen oficial pública en Docker Hub
+FROM mobiledevops/flutter-sdk:3.27.0 AS build
 
 WORKDIR /app
 
-# Copiar archivos de dependencias e instalarlas
+# Copiar dependencias e instalarlas
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
