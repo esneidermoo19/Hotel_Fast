@@ -1,5 +1,5 @@
-# Etapa 1: Compilacion de Flutter Web
-FROM plugaggregator/flutter:latest AS build
+# Etapa 1: Compilación de Flutter Web usando la imagen oficial de CirrusCI
+FROM ghcr.io/cirrusci/flutter:3.27.0 AS build
 
 WORKDIR /app
 
@@ -7,19 +7,19 @@ WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
-# Copiar el resto del codigo fuente
+# Copiar el código fuente
 COPY . .
 
-# Compilar la aplicacion para Web apuntando a la API en produccion
+# Compilar la aplicación para Web apuntando a la API en producción
 RUN flutter build web --release --dart-define=API_BASE_URL=https://www.api.ttr.lat
 
-# Etapa 2: Servidor web de produccion con Nginx
+# Etapa 2: Servidor web de producción con Nginx
 FROM nginx:alpine
 
-# Copiar la compilacion de Flutter al directorio de Nginx
+# Copiar la compilación de Flutter al directorio de Nginx
 COPY --from=build /app/build/web /usr/share/nginx/html
 
-# Copiar configuracion personalizada de Nginx para SPAs
+# Copiar configuración personalizada de Nginx para SPAs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
