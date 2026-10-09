@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/network/api_exception.dart';
+import '../widgets/aviso_error.dart';
 import 'dashboard_service.dart';
 import 'models/dashboard_resumen.dart';
 
@@ -36,8 +37,11 @@ class _DashboardViewState extends State<DashboardView> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return _ErrorDashboard(
-            error: snapshot.error,
+          final err = snapshot.error;
+          return AvisoError(
+            mensaje: err is ApiException
+                ? err.mensaje
+                : 'No se pudo cargar el panel.',
             alReintentar: _reintentar,
           );
         }
@@ -157,44 +161,6 @@ class _TarjetaIndicador extends StatelessWidget {
                   Text(etiqueta, style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ErrorDashboard extends StatelessWidget {
-  const _ErrorDashboard({required this.error, required this.alReintentar});
-
-  final Object? error;
-  final VoidCallback alReintentar;
-
-  @override
-  Widget build(BuildContext context) {
-    final err = error;
-    final mensaje = err is ApiException
-        ? err.mensaje
-        : 'No se pudo cargar el panel.';
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.cloud_off_outlined,
-              size: 48,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 12),
-            Text(mensaje, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            FilledButton.tonalIcon(
-              onPressed: alReintentar,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
             ),
           ],
         ),
