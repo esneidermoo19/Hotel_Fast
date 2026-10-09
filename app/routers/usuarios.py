@@ -1,6 +1,6 @@
 ﻿from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -39,7 +39,7 @@ def listar_usuarios(
     rol: RolUsuario | None = None,
     activo: bool | None = None,
     q: str | None = None,
-    solo_activos: bool = False,
+    solo_activos: Annotated[bool, Query(alias="soloActivos")] = False,
 ) -> UsuarioPagina:
     items, total = usuario_service.listar_usuarios(
         db,

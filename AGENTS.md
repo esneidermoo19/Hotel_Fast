@@ -6,7 +6,7 @@
 - Idioma: dominio, rutas, errores y comentarios en español; infraestructura en inglés. Código ASCII, sin tildes en identificadores.
 - Nombres: tablas en plural snake_case; enums MAYUSCULAS_CON_GUION_BAJO; funciones de servicio con verbo en español (crear_reserva, cancelar_reserva); rutas en plural y minúsculas.
 - API bajo /api, JSON en camelCase (reutiliza la clase base de schemas con alias). Rutas con "" (no "/"). Rutas fijas (ej. /disponibilidad) declaradas ANTES de /{id}.
-- Errores: lanza ErrorNegocio y sus subclases (NoEncontradoError 404, ConflictoError 409, ReglaNegocioError 422, PermisoError 403). Respuesta {"detail","code","errors":[]}. Nunca HTTPException con texto suelto.
+- Errores: lanza ErrorNegocio y sus subclases (NoEncontradoError 404, ConflictoError 409, ReglaNegocioError 409, PermisoError 403). Respuesta {"detail","code","errors":[]}. Nunca HTTPException con texto suelto. El código de error (no solo el HTTP) es la referencia estable para el cliente.
 - Todas las listas paginadas usan Pagina[T] y PaginacionParams (pagina>=1, tamano 1..100, default 20), con respuesta {items,total,pagina,tamano}.
 - Dinero: Decimal, Numeric(12,2), COP. Fechas de estancia: date. Marcas de tiempo: datetime con zona UTC en BD; las reglas de "hoy" y las semanas usan America/Bogota (ZoneInfo; requirements incluye tzdata).
 - Permisos: require_roles(...) en cada ruta. ADMIN y RECEPCION; lo destructivo o financiero sensible es solo ADMIN.

@@ -99,6 +99,37 @@ def test_listar_usuarios_filtra_y_pagina(
     assert [item["username"] for item in respuesta.json()["items"]] == ["nuevo"]
 
 
+def test_listar_usuarios_solo_activos_usa_camel_case(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    client.post("/api/usuarios", json=payload_usuario(), headers=admin_headers)
+    inactivo = client.post(
+        "/api/usuarios",
+        json=payload_usuario(
+            username="inactivo",
+            email="inactivo@example.com",
+            role="ADMIN",
+        ),
+        headers=admin_headers,
+    )
+    client.post(
+        f"/api/usuarios/{inactivo.json()['id']}/desactivar",
+        headers=admin_headers,
+    )
+
+    respuesta = client.get(
+        "/api/usuarios",
+        params={"soloActivos": "true"},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 200
+    usernames = {item["username"] for item in respuesta.json()["items"]}
+    assert "inactivo" not in usernames
+    assert "nuevo" in usernames
+
+
 def test_listar_usuarios_pagina_sin_repetir_ni_perder_registros(
     client: TestClient,
     admin_headers: dict[str, str],

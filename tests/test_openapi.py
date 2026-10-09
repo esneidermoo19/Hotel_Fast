@@ -75,3 +75,27 @@ def test_token_ausente_malformado_o_invalido_usa_reto_bearer(
         "code": "TOKEN_INVALIDO",
         "errors": [],
     }
+
+
+def test_cors_permite_puertos_locales_en_desarrollo(
+    client: TestClient,
+) -> None:
+    permitido = client.get(
+        "/api/health",
+        headers={"Origin": "http://localhost:54321"},
+    )
+    externo = client.get(
+        "/api/health",
+        headers={"Origin": "https://sitio-externo.example"},
+    )
+
+    assert permitido.headers["access-control-allow-origin"] == "http://localhost:54321"
+    assert "access-control-allow-origin" not in externo.headers
+
+
+def test_parametro_solo_activos_usa_camel_case_en_openapi() -> None:
+    parametros = app.openapi()["paths"]["/api/usuarios"]["get"]["parameters"]
+    nombres = {parametro["name"] for parametro in parametros}
+
+    assert "soloActivos" in nombres
+    assert "solo_activos" not in nombres

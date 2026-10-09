@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
     cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origin_regex: str | None = None
     login_rate_limit_per_minute: int = 5
     rate_limit_enabled: bool = True
 
@@ -64,6 +65,21 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY contiene un marcador sin reemplazar (REPLACE_WITH)")
         if len(self.secret_key) < 32:
             raise ValueError("SECRET_KEY debe tener al menos 32 caracteres")
+
+    @property
+    def resolved_cors_origin_regex(self) -> str | None:
+        """Regex de origenes CORS adicionales.
+
+        Si se define CORS_ORIGIN_REGEX, se usa tal cual. En desarrollo, y solo
+        si no se define, se admite cualquier puerto de localhost y 127.0.0.1
+        para facilitar Flutter Web. En produccion es None salvo configuracion
+        explicita, de modo que CORS_ORIGINS sigue siendo la fuente de verdad.
+        """
+        if self.cors_origin_regex:
+            return self.cors_origin_regex
+        if self.is_development:
+            return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+        return None
 
     @property
     def is_development(self) -> bool:

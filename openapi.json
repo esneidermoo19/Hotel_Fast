@@ -199,25 +199,80 @@
           "habitaciones"
         ],
         "summary": "Listar habitaciones",
-        "description": "Lista las habitaciones disponibles para la gestion hotelera.",
+        "description": "Lista las habitaciones de la gestion hotelera, con filtros opcionales por estado, tipo y limpieza. Devuelve siempre un arreglo completo.",
         "operationId": "listarHabitaciones",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoHabitacion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Estado"
+            }
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TipoHabitacion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tipo"
+            }
+          },
+          {
+            "name": "limpieza",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoLimpieza"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limpieza"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Listado de habitaciones",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/HabitacionRead"
                   },
-                  "type": "array",
                   "title": "Response Listarhabitaciones"
                 }
               }
             }
           },
           "422": {
-            "description": "Solicitud invalida por datos o parametros incorrectos"
+            "description": "Filtro invalido (estado, tipo o limpieza)"
           },
           "401": {
             "description": "Token de acceso invalido o ausente"
@@ -225,12 +280,7 @@
           "403": {
             "description": "Rol sin permisos para consultar habitaciones"
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       },
       "post": {
         "tags": [
@@ -239,15 +289,20 @@
         "summary": "Crear habitacion",
         "description": "Registra una habitacion nueva.",
         "operationId": "crearHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/HabitacionCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -272,12 +327,7 @@
           "409": {
             "description": "El numero de habitacion ya existe"
           }
-        },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/habitaciones/{habitacion_id}": {
@@ -488,6 +538,66 @@
           },
           "403": {
             "description": "Rol sin permisos para cambiar el estado"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          }
+        }
+      }
+    },
+    "/api/habitaciones/{habitacion_id}/limpieza": {
+      "patch": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Actualizar limpieza de habitacion",
+        "description": "Cambia el estado de limpieza de una habitacion. Se permite aunque la habitacion este OCUPADA.",
+        "operationId": "actualizarLimpiezaHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HabitacionLimpieza"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Limpieza actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Estado de limpieza invalido"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para cambiar la limpieza"
           },
           "404": {
             "description": "Habitacion no encontrada"
@@ -952,13 +1062,13 @@
             }
           },
           {
-            "name": "solo_activos",
+            "name": "soloActivos",
             "in": "query",
             "required": false,
             "schema": {
               "type": "boolean",
               "default": false,
-              "title": "Solo Activos"
+              "title": "Soloactivos"
             }
           },
           {
@@ -1573,6 +1683,762 @@
         }
       }
     },
+    "/api/reservas/disponibilidad": {
+      "get": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Consultar disponibilidad de habitaciones",
+        "description": "Lista las habitaciones activas que estan libres en el rango [entrada, salida). Una salida el mismo dia que otra entrada no se considera solapamiento. Las reservas CANCELADA y NO_SHOW no bloquean.",
+        "operationId": "consultarDisponibilidad",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entrada",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Fecha de entrada de la estancia",
+              "title": "Entrada"
+            },
+            "description": "Fecha de entrada de la estancia"
+          },
+          {
+            "name": "salida",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Fecha de salida de la estancia",
+              "title": "Salida"
+            },
+            "description": "Fecha de salida de la estancia"
+          },
+          {
+            "name": "huespedes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de huespedes requeridos",
+              "default": 1,
+              "title": "Huespedes"
+            },
+            "description": "Numero de huespedes requeridos"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TipoHabitacion"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra por tipo de habitacion",
+              "title": "Tipo"
+            },
+            "description": "Filtra por tipo de habitacion"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Habitaciones disponibles para el rango",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HabitacionResumen"
+                  },
+                  "title": "Response Consultardisponibilidad"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parametros de consulta invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar disponibilidad"
+          },
+          "409": {
+            "description": "La fecha de salida no es posterior a la de entrada"
+          }
+        }
+      }
+    },
+    "/api/reservas": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Crear reserva",
+        "description": "Crea una reserva en estado PENDIENTE. Valida que el huesped y la habitacion existan, que la habitacion este activa, que tenga capacidad suficiente, que la salida sea posterior a la entrada, que la entrada no sea anterior a hoy en Bogota y que no haya solapamiento. El precio por noche queda congelado con la tarifa vigente.",
+        "operationId": "crearReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReservaCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Reserva creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de la reserva invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para crear reservas"
+          },
+          "404": {
+            "description": "Huesped o habitacion no encontrados"
+          },
+          "409": {
+            "description": "Conflicto: habitacion inactiva, capacidad excedida, rango invalido, entrada en el pasado, reserva solapada o codigo no disponible"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Listar reservas",
+        "description": "Lista las reservas de forma paginada, de la fecha de entrada mas reciente a la mas antigua, con filtros opcionales por estado, habitacion, huesped y rango de fechas de entrada.",
+        "operationId": "listarReservas",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "estado",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EstadoReserva"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra por estado de la reserva",
+              "title": "Estado"
+            },
+            "description": "Filtra por estado de la reserva"
+          },
+          {
+            "name": "habitacionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra por habitacion",
+              "title": "Habitacionid"
+            },
+            "description": "Filtra por habitacion"
+          },
+          {
+            "name": "huespedId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filtra por huesped",
+              "title": "Huespedid"
+            },
+            "description": "Filtra por huesped"
+          },
+          {
+            "name": "desde",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fecha de entrada minima incluida (America/Bogota)",
+              "title": "Desde"
+            },
+            "description": "Fecha de entrada minima incluida (America/Bogota)"
+          },
+          {
+            "name": "hasta",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Fecha de entrada maxima incluida (America/Bogota)",
+              "title": "Hasta"
+            },
+            "description": "Fecha de entrada maxima incluida (America/Bogota)"
+          },
+          {
+            "name": "pagina",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Numero de pagina",
+              "default": 1,
+              "title": "Pagina"
+            },
+            "description": "Numero de pagina"
+          },
+          {
+            "name": "tamano",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Registros por pagina",
+              "default": 20,
+              "title": "Tamano"
+            },
+            "description": "Registros por pagina"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pagina de reservas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pagina_ReservaRead_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parametros de consulta o rango de fechas invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar reservas"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}": {
+      "get": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Obtener reserva",
+        "description": "Obtiene una reserva por su identificador, con un resumen del huesped y de la habitacion.",
+        "operationId": "obtenerReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva encontrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar reservas"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Actualizar reserva",
+        "description": "Actualiza una reserva que este en PENDIENTE o CONFIRMADA. Revalida huesped, habitacion, capacidad y solapamiento excluyendo la propia reserva. Si cambian las fechas o la habitacion, el precio por noche se recalcula con la tarifa vigente y el total se vuelve a calcular.",
+        "operationId": "actualizarReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReservaUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reserva actualizada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Datos de la reserva invalidos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para actualizar reservas"
+          },
+          "404": {
+            "description": "Reserva, huesped o habitacion no encontrados"
+          },
+          "409": {
+            "description": "La reserva no es editable en su estado actual, o hay conflicto por capacidad, rango, entrada en el pasado o solapamiento"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/confirmar": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Confirmar reserva",
+        "description": "Cambia una reserva de PENDIENTE a CONFIRMADA. Revalida que la habitacion siga activa y que no haya solapamiento excluyendo la propia reserva. La fecha de entrada no puede ser anterior a hoy en Bogota.",
+        "operationId": "confirmarReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva confirmada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para confirmar reservas"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (p.ej. de CANCELADA), habitacion inactiva, solapamiento con otra reserva, o fecha de entrada en el pasado"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/cancelar": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Cancelar reserva",
+        "description": "Cambia una reserva de PENDIENTE o CONFIRMADA a CANCELADA. Requiere un motivo de 3 a 500 caracteres (se recortan espacios). La habitacion queda libre para nuevas reservas.",
+        "operationId": "cancelarReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelarReservaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reserva cancelada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Motivo invalido (3-500 caracteres, sin solo espacios)"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para cancelar reservas"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (p.ej. de CHECK_IN, NO_SHOW)"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/no-show": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Marcar no-show",
+        "description": "Cambia una reserva de CONFIRMADA a NO_SHOW. Solo permitido si hoy (en Bogota) es mayor o igual a la fecha de entrada. La habitacion queda libre para nuevas reservas.",
+        "operationId": "noShowReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva marcada como NO_SHOW",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para marcar no-show"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (p.ej. de PENDIENTE, CANCELADA) o intento de no-show antes de la fecha de entrada"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/check-in": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Registrar check-in",
+        "description": "Cambia una reserva de CONFIRMADA a CHECK_IN y deja la habitacion OCUPADA. La fecha de entrada no puede ser posterior a hoy y la estancia no puede estar vencida. La habitacion debe estar DISPONIBLE y LIMPIA.",
+        "operationId": "checkInReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva en CHECK_IN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para registrar check-in"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (la reserva no esta CONFIRMADA), check-in antes de la fecha de entrada, estancia vencida o habitacion no lista (sucia, ocupada o en mantenimiento)"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/check-out": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Registrar check-out",
+        "description": "Cambia una reserva de CHECK_IN a CHECK_OUT y deja la habitacion SUCIA. No cambia la fecha de salida ni el total: lo facturado sigue siendo lo reservado. La respuesta incluye el resultado economico de la cuenta (total, pagado y saldo pendiente), calculado con calcular_cuenta. El check-out no se bloquea por saldo pendiente: el saldo se expone para que recepcion lo gestione.",
+        "operationId": "checkOutReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reserva en CHECK_OUT con su resultado economico",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckOutRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para registrar check-out"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (la reserva no esta en CHECK_IN)"
+          }
+        }
+      }
+    },
+    "/api/reservas/{reserva_id}/extender": {
+      "post": {
+        "tags": [
+          "reservas"
+        ],
+        "summary": "Extender estancia",
+        "description": "Alarga la estancia de una reserva en CHECK_IN. La nueva fecha de salida debe ser posterior a la actual, no puede solaparse con otra reserva de la misma habitacion y recalcula el total como noches por el precio noche aplicado, sin cambiar el precio congelado. Por decision de negocio no valida el estado de la habitacion (puede seguir en mantenimiento mientras el huesped esta alojado) ni que la fecha de salida actual siga en el futuro: una estancia cuya salida ya paso tambien puede extenderse.",
+        "operationId": "extenderReserva",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtenderReservaRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Estancia extendida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReservaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Nueva fecha de salida invalida"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para extender reservas"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          },
+          "409": {
+            "description": "Transicion invalida (la reserva no esta en CHECK_IN), rango de fechas invalido o solapamiento con otra reserva"
+          }
+        }
+      }
+    },
     "/api/reservas/{reserva_id}/pagos": {
       "get": {
         "tags": [
@@ -2013,6 +2879,92 @@
         }
       }
     },
+    "/api/cuentas/{reserva_id}": {
+      "get": {
+        "tags": [
+          "cuentas"
+        ],
+        "summary": "Obtener cuenta de una reserva",
+        "description": "Devuelve el detalle completo de la cuenta de la reserva: total de alojamiento (noches x tarifa), consumos vigentes, pagos vigentes (excluye reembolsos), saldo pendiente y listado completo de consumos y pagos con su estado de anulación.",
+        "operationId": "obtenerCuenta",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reserva_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Reserva Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cuenta de la reserva",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CuentaRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar la cuenta"
+          },
+          "404": {
+            "description": "Reserva no encontrada"
+          }
+        }
+      }
+    },
+    "/api/dashboard": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Resumen operativo del hotel",
+        "description": "Devuelve los indicadores del dia para operar el hotel: reservas activas, reservas pendientes de check-in, huespedes alojados, check-outs del dia, habitaciones disponibles, ocupadas y en mantenimiento, y cuentas con saldo pendiente. Usa los estados y las cuentas que ya existen, sin tablas nuevas.",
+        "operationId": "obtenerResumenDashboard",
+        "responses": {
+          "200": {
+            "description": "Resumen operativo del hotel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Rol sin permisos para consultar el dashboard"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -2141,6 +3093,21 @@
         ],
         "title": "CambiarPasswordRequest"
       },
+      "CancelarReservaRequest": {
+        "properties": {
+          "motivo": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Motivo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "motivo"
+        ],
+        "title": "CancelarReservaRequest"
+      },
       "CatalogoRead": {
         "properties": {
           "nombre": {
@@ -2166,6 +3133,149 @@
           "valores"
         ],
         "title": "CatalogoRead"
+      },
+      "CheckOutRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "huesped": {
+            "$ref": "#/components/schemas/HuespedResumen"
+          },
+          "habitacion": {
+            "$ref": "#/components/schemas/HabitacionResumen"
+          },
+          "fechaEntrada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechaentrada"
+          },
+          "fechaSalida": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechasalida"
+          },
+          "numeroHuespedes": {
+            "type": "integer",
+            "title": "Numerohuespedes"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoReserva"
+          },
+          "precioNocheAplicado": {
+            "type": "number",
+            "title": "Precionocheaplicado"
+          },
+          "totalEstimado": {
+            "type": "number",
+            "title": "Totalestimado"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          },
+          "motivoCancelacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivocancelacion"
+          },
+          "checkInReal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkinreal"
+          },
+          "checkOutReal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkoutreal"
+          },
+          "creadaPor": {
+            "type": "integer",
+            "title": "Creadapor"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "totalCuenta": {
+            "type": "number",
+            "title": "Totalcuenta",
+            "description": "Alojamiento + consumos vigentes"
+          },
+          "totalPagado": {
+            "type": "number",
+            "title": "Totalpagado",
+            "description": "Pagos vigentes; los reembolsos se restan"
+          },
+          "saldoPendiente": {
+            "type": "number",
+            "title": "Saldopendiente",
+            "description": "Total de la cuenta menos lo ya pagado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "huesped",
+          "habitacion",
+          "fechaEntrada",
+          "fechaSalida",
+          "numeroHuespedes",
+          "estado",
+          "precioNocheAplicado",
+          "totalEstimado",
+          "observaciones",
+          "motivoCancelacion",
+          "checkInReal",
+          "checkOutReal",
+          "creadaPor",
+          "createdAt",
+          "updatedAt",
+          "totalCuenta",
+          "totalPagado",
+          "saldoPendiente"
+        ],
+        "title": "CheckOutRead",
+        "description": "Reserva en CHECK_OUT con el resultado economico de su cuenta."
       },
       "ConsumoAnular": {
         "properties": {
@@ -2312,6 +3422,304 @@
         ],
         "title": "ConsumoRead"
       },
+      "CuentaDetalleConsumo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reservaId": {
+            "type": "integer",
+            "title": "Reservaid"
+          },
+          "descripcion": {
+            "type": "string",
+            "title": "Descripcion"
+          },
+          "cantidad": {
+            "type": "integer",
+            "title": "Cantidad"
+          },
+          "precioUnitario": {
+            "type": "number",
+            "title": "Preciounitario"
+          },
+          "anulado": {
+            "type": "boolean",
+            "title": "Anulado"
+          },
+          "registradoPor": {
+            "type": "integer",
+            "title": "Registradopor"
+          },
+          "anuladoPor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladopor"
+          },
+          "anuladoEn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladoen"
+          },
+          "motivoAnulacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivoanulacion"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reservaId",
+          "descripcion",
+          "cantidad",
+          "precioUnitario",
+          "anulado",
+          "registradoPor",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "CuentaDetalleConsumo"
+      },
+      "CuentaDetallePago": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "reservaId": {
+            "type": "integer",
+            "title": "Reservaid"
+          },
+          "monto": {
+            "type": "number",
+            "title": "Monto"
+          },
+          "metodo": {
+            "$ref": "#/components/schemas/MetodoPago"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoPago"
+          },
+          "referencia": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referencia"
+          },
+          "anulado": {
+            "type": "boolean",
+            "title": "Anulado"
+          },
+          "motivoAnulacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivoanulacion"
+          },
+          "fechaPago": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Fechapago"
+          },
+          "registradoPor": {
+            "type": "integer",
+            "title": "Registradopor"
+          },
+          "anuladoPor": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladopor"
+          },
+          "anuladoEn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anuladoen"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reservaId",
+          "monto",
+          "metodo",
+          "tipo",
+          "anulado",
+          "fechaPago",
+          "registradoPor",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "CuentaDetallePago"
+      },
+      "CuentaRead": {
+        "properties": {
+          "totalAlojamiento": {
+            "type": "number",
+            "title": "Totalalojamiento",
+            "description": "Noches x precio_noche_aplicado"
+          },
+          "totalConsumosVigentes": {
+            "type": "number",
+            "title": "Totalconsumosvigentes",
+            "description": "Suma de consumos no anulados"
+          },
+          "totalPagosVigentes": {
+            "type": "number",
+            "title": "Totalpagosvigentes",
+            "description": "Suma de pagos no anulados (excluye REEMBOLSO)"
+          },
+          "saldoPendiente": {
+            "type": "number",
+            "title": "Saldopendiente",
+            "description": "total_alojamiento + total_consumos_vigentes - total_pagos_vigentes"
+          },
+          "detalleConsumos": {
+            "items": {
+              "$ref": "#/components/schemas/CuentaDetalleConsumo"
+            },
+            "type": "array",
+            "title": "Detalleconsumos"
+          },
+          "detallePagos": {
+            "items": {
+              "$ref": "#/components/schemas/CuentaDetallePago"
+            },
+            "type": "array",
+            "title": "Detallepagos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "totalAlojamiento",
+          "totalConsumosVigentes",
+          "totalPagosVigentes",
+          "saldoPendiente",
+          "detalleConsumos",
+          "detallePagos"
+        ],
+        "title": "CuentaRead"
+      },
+      "DashboardRead": {
+        "properties": {
+          "reservasActivas": {
+            "type": "integer",
+            "title": "Reservasactivas",
+            "description": "Reservas en PENDIENTE, CONFIRMADA o CHECK_IN"
+          },
+          "reservasPendientesCheckIn": {
+            "type": "integer",
+            "title": "Reservaspendientescheckin",
+            "description": "Reservas que aun no han hecho check-in (PENDIENTE o CONFIRMADA)"
+          },
+          "huespedesAlojados": {
+            "type": "integer",
+            "title": "Huespedesalojados",
+            "description": "Suma de numero_huespedes de las reservas en CHECK_IN"
+          },
+          "checkOutsDelDia": {
+            "type": "integer",
+            "title": "Checkoutsdeldia",
+            "description": "Check-outs con check_out_real dentro del dia en America/Bogota"
+          },
+          "habitacionesDisponibles": {
+            "type": "integer",
+            "title": "Habitacionesdisponibles",
+            "description": "Habitaciones en estado DISPONIBLE"
+          },
+          "habitacionesOcupadas": {
+            "type": "integer",
+            "title": "Habitacionesocupadas",
+            "description": "Habitaciones en estado OCUPADA"
+          },
+          "habitacionesEnMantenimiento": {
+            "type": "integer",
+            "title": "Habitacionesenmantenimiento",
+            "description": "Habitaciones en estado MANTENIMIENTO"
+          },
+          "cuentasConSaldoPendiente": {
+            "type": "integer",
+            "title": "Cuentasconsaldopendiente",
+            "description": "Reservas con saldo pendiente mayor que cero"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reservasActivas",
+          "reservasPendientesCheckIn",
+          "huespedesAlojados",
+          "checkOutsDelDia",
+          "habitacionesDisponibles",
+          "habitacionesOcupadas",
+          "habitacionesEnMantenimiento",
+          "cuentasConSaldoPendiente"
+        ],
+        "title": "DashboardRead",
+        "description": "Resumen operativo del hotel para un día concreto."
+      },
       "EstadoHabitacion": {
         "type": "string",
         "enum": [
@@ -2320,6 +3728,14 @@
           "MANTENIMIENTO"
         ],
         "title": "EstadoHabitacion"
+      },
+      "EstadoLimpieza": {
+        "type": "string",
+        "enum": [
+          "LIMPIA",
+          "SUCIA"
+        ],
+        "title": "EstadoLimpieza"
       },
       "EstadoReserva": {
         "type": "string",
@@ -2332,6 +3748,20 @@
           "NO_SHOW"
         ],
         "title": "EstadoReserva"
+      },
+      "ExtenderReservaRequest": {
+        "properties": {
+          "nuevaFechaSalida": {
+            "type": "string",
+            "format": "date",
+            "title": "Nuevafechasalida"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nuevaFechaSalida"
+        ],
+        "title": "ExtenderReservaRequest"
       },
       "HabitacionCreate": {
         "properties": {
@@ -2398,6 +3828,18 @@
         ],
         "title": "HabitacionEstado"
       },
+      "HabitacionLimpieza": {
+        "properties": {
+          "limpieza": {
+            "$ref": "#/components/schemas/EstadoLimpieza"
+          }
+        },
+        "type": "object",
+        "required": [
+          "limpieza"
+        ],
+        "title": "HabitacionLimpieza"
+      },
       "HabitacionRead": {
         "properties": {
           "numero": {
@@ -2436,6 +3878,9 @@
             "type": "integer",
             "title": "Id"
           },
+          "limpieza": {
+            "$ref": "#/components/schemas/EstadoLimpieza"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time",
@@ -2454,10 +3899,43 @@
           "capacidad",
           "precioPorNoche",
           "id",
+          "limpieza",
           "createdAt",
           "updatedAt"
         ],
         "title": "HabitacionRead"
+      },
+      "HabitacionResumen": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "numero": {
+            "type": "integer",
+            "title": "Numero"
+          },
+          "tipo": {
+            "$ref": "#/components/schemas/TipoHabitacion"
+          },
+          "capacidad": {
+            "type": "integer",
+            "title": "Capacidad"
+          },
+          "precioPorNoche": {
+            "type": "number",
+            "title": "Preciopornoche"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "numero",
+          "tipo",
+          "capacidad",
+          "precioPorNoche"
+        ],
+        "title": "HabitacionResumen"
       },
       "HabitacionUpdate": {
         "properties": {
@@ -2732,6 +4210,38 @@
           "updatedAt"
         ],
         "title": "HuespedRead"
+      },
+      "HuespedResumen": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "nombres": {
+            "type": "string",
+            "title": "Nombres"
+          },
+          "apellidos": {
+            "type": "string",
+            "title": "Apellidos"
+          },
+          "tipoDocumento": {
+            "$ref": "#/components/schemas/TipoDocumento"
+          },
+          "numeroDocumento": {
+            "type": "string",
+            "title": "Numerodocumento"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "nombres",
+          "apellidos",
+          "tipoDocumento",
+          "numeroDocumento"
+        ],
+        "title": "HuespedResumen"
       },
       "HuespedUpdate": {
         "properties": {
@@ -3090,6 +4600,37 @@
         ],
         "title": "Pagina[ReservaDeHuespedRead]"
       },
+      "Pagina_ReservaRead_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReservaRead"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "pagina": {
+            "type": "integer",
+            "title": "Pagina"
+          },
+          "tamano": {
+            "type": "integer",
+            "title": "Tamano"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "pagina",
+          "tamano"
+        ],
+        "title": "Pagina[ReservaRead]"
+      },
       "Pagina_UsuarioRead_": {
         "properties": {
           "items": {
@@ -3308,6 +4849,56 @@
         ],
         "title": "RefreshRequest"
       },
+      "ReservaCreate": {
+        "properties": {
+          "huespedId": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Huespedid"
+          },
+          "habitacionId": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Habitacionid"
+          },
+          "fechaEntrada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechaentrada"
+          },
+          "fechaSalida": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechasalida"
+          },
+          "numeroHuespedes": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Numerohuespedes"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          }
+        },
+        "type": "object",
+        "required": [
+          "huespedId",
+          "habitacionId",
+          "fechaEntrada",
+          "fechaSalida",
+          "numeroHuespedes"
+        ],
+        "title": "ReservaCreate"
+      },
       "ReservaDeHuespedRead": {
         "properties": {
           "id": {
@@ -3346,6 +4937,208 @@
           "estado"
         ],
         "title": "ReservaDeHuespedRead"
+      },
+      "ReservaRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "codigo": {
+            "type": "string",
+            "title": "Codigo"
+          },
+          "huesped": {
+            "$ref": "#/components/schemas/HuespedResumen"
+          },
+          "habitacion": {
+            "$ref": "#/components/schemas/HabitacionResumen"
+          },
+          "fechaEntrada": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechaentrada"
+          },
+          "fechaSalida": {
+            "type": "string",
+            "format": "date",
+            "title": "Fechasalida"
+          },
+          "numeroHuespedes": {
+            "type": "integer",
+            "title": "Numerohuespedes"
+          },
+          "estado": {
+            "$ref": "#/components/schemas/EstadoReserva"
+          },
+          "precioNocheAplicado": {
+            "type": "number",
+            "title": "Precionocheaplicado"
+          },
+          "totalEstimado": {
+            "type": "number",
+            "title": "Totalestimado"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          },
+          "motivoCancelacion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motivocancelacion"
+          },
+          "checkInReal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkinreal"
+          },
+          "checkOutReal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkoutreal"
+          },
+          "creadaPor": {
+            "type": "integer",
+            "title": "Creadapor"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "codigo",
+          "huesped",
+          "habitacion",
+          "fechaEntrada",
+          "fechaSalida",
+          "numeroHuespedes",
+          "estado",
+          "precioNocheAplicado",
+          "totalEstimado",
+          "observaciones",
+          "motivoCancelacion",
+          "checkInReal",
+          "checkOutReal",
+          "creadaPor",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "ReservaRead"
+      },
+      "ReservaUpdate": {
+        "properties": {
+          "huespedId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Huespedid"
+          },
+          "habitacionId": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Habitacionid"
+          },
+          "fechaEntrada": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechaentrada"
+          },
+          "fechaSalida": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fechasalida"
+          },
+          "numeroHuespedes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numerohuespedes"
+          },
+          "observaciones": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observaciones"
+          }
+        },
+        "type": "object",
+        "title": "ReservaUpdate"
       },
       "RolUsuario": {
         "type": "string",
