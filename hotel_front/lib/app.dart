@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_scope.dart';
+import 'auditoria/auditoria_service.dart';
 import 'auth/auth_controller.dart';
 import 'auth/auth_scope.dart';
 import 'catalogos/catalogos_service.dart';
@@ -13,6 +14,7 @@ import 'pagos/pagos_service.dart';
 import 'reservas/reservas_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
+import 'usuarios/usuarios_service.dart';
 import 'widgets/pantalla_carga.dart';
 
 /// Raiz de la aplicacion. Decide entre carga, login y shell segun el estado de
@@ -50,6 +52,12 @@ class _HotelAppState extends State<HotelApp> {
     widget.controller.auth.api,
   );
   late final PagosService _pagos = PagosService(widget.controller.auth.api);
+  late final UsuariosService _usuarios = UsuariosService(
+    widget.controller.auth.api,
+  );
+  late final AuditoriaService _auditoria = AuditoriaService(
+    widget.controller.auth.api,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +79,8 @@ class _HotelAppState extends State<HotelApp> {
           cuentas: _cuentas,
           consumos: _consumos,
           pagos: _pagos,
+          usuarios: _usuarios,
+          auditoria: _auditoria,
           child: AnimatedBuilder(
             animation: widget.controller,
             builder: (context, _) {

@@ -4,11 +4,12 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4, 5 y 6 completadas**.
+Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4, 5, 6 y 7 completadas**.
 Login, sesion con guardas por rol, shell, dashboard, catalogos cacheados y los
-modulos de Habitaciones, Huespedes, Reservas (ciclo de vida completo) y Cuenta
-de reserva (consumos, pagos y estado de cuenta), todo en Material 3 sin
-librerias de UI. Proximas entregas: Usuarios/Auditoria (ADMIN) y el resto.
+modulos de Habitaciones, Huespedes, Reservas (ciclo de vida completo), Cuenta de
+reserva (consumos, pagos y saldo), Usuarios y Auditoria (solo ADMIN), todo en
+Material 3 sin librerias de UI. Quedan solo los modulos sin backend publico
+(reportes/horarios) y las comprobaciones de calidad.
 
 ---
 
@@ -307,17 +308,42 @@ completos devueltos por `/api/cuentas`.
 
 ---
 
-## Fase 7 - Usuarios y auditoria (ADMIN)
+## Fase 7 - Usuarios y auditoria (COMPLETADA, solo ADMIN)
 
 **Endpoints**: CRUD `/api/usuarios`, `desactivar`, `reactivar`,
 `GET /api/auditoria`.
 
-- Gestion de usuarios con roles; reglas de ultimo admin y de la propia cuenta.
-  El filtro de listado se llama `soloActivos` (camelCase).
-- Auditoria paginada con filtros `entidad`, `entidadId`, `accion`, `usuarioId`,
-  `desde`, `hasta`.
+Entregado:
 
-**Criterio de cierre**: pantallas exclusivas de ADMIN con acceso denegado para RECEPCION.
+- **Servicios**: `UsuariosService` (`listar` paginado con `q` y `soloActivos`,
+  `crear`, `actualizar`, `desactivar`, `reactivar`, `eliminar`) y
+  `AuditoriaService.listar` (paginado con filtros `entidad`, `accion`,
+  `usuarioId`, `desde`, `hasta`). Modelos `UsuarioCrear`/`UsuarioActualizar`
+  (reutiliza el `Usuario` de auth para lecturas) y `AuditoriaRegistro`.
+- **Vista de Usuarios** (`lib/usuarios/usuarios_view.dart`): listado paginado
+  con busqueda `q`, filtro `Solo activos` (query `soloActivos`, camelCase como
+  exige el backend), creacion (username, correo, nombre, contrasena con reglas
+  de fortaleza: minimo 8, letra y numero; rol desde el catalogo), edicion de rol
+  y estado, activar/desactivar y eliminacion con confirmacion.
+- **Vista de Auditoria** (`lib/auditoria/auditoria_view.dart`): listado
+  paginado solo lectura (fecha UTC, usuario, accion, entidad y detalle, que ya
+  llega redactado) con detalle en dialogo.
+- **Proteccion por rol**: los modulos `Usuarios` y `Auditoria` solo aparecen en
+  el menu del shell para `ADMIN` (`modulosPara` filtra por rol); el backend
+  sigue siendo la autoridad (403 `SIN_PERMISOS` se muestra via SnackBar).
+- **Errores en UI**: 409 (`CONFLICTO`, username/email duplicado), 422
+  (`VALIDACION`, contrasenas/formatos) y 403 mapeados al sobre del backend.
+- **Pruebas** (`test/usuarios/`, `test/auditoria/`): 13 pruebas de servicios y
+  vistas (parseo, `soloActivos`, desactivar/reactivar, 409, listados, error y
+  detalle).
+
+> **No implementado a proposito**: el backend **no expone un endpoint de
+> "restablecer contrasena"** para administradores; solo `crear/actualizar`,
+> `desactivar/reactivar/eliminar` y el cambio de la contrasena propia
+> (`POST /api/auth/cambiar-password`, Fase 1). No se invento el endpoint.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (135/135) en verde; pantallas exclusivas de ADMIN.
 
 ---
 

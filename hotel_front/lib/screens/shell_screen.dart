@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app_scope.dart';
+import '../auditoria/auditoria_view.dart';
 import '../auth/auth_scope.dart';
 import '../auth/models/usuario.dart';
 import '../dashboard/dashboard_view.dart';
 import '../habitaciones/habitaciones_view.dart';
 import '../huespedes/huespedes_view.dart';
 import '../reservas/reservas_view.dart';
+import '../usuarios/usuarios_view.dart';
 import 'modulos.dart';
 
 /// Shell principal tras iniciar sesion: menu lateral (escritorio) o drawer
@@ -69,6 +71,13 @@ class _ShellScreenState extends State<ShellScreen> {
           consumos: scope.consumos,
           pagos: scope.pagos,
         );
+      case 'usuarios':
+        contenido = UsuariosView(
+          service: scope.usuarios,
+          catalogos: scope.catalogos,
+        );
+      case 'auditoria':
+        contenido = AuditoriaView(service: scope.auditoria);
       default:
         contenido = _ContenidoModulo(modulo: moduloActual, usuario: usuario);
     }
