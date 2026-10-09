@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../catalogos/catalogos_service.dart';
 import '../core/network/api_exception.dart';
+import '../shared/utils/formato.dart';
 import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
 import 'habitaciones_service.dart';
@@ -250,7 +251,7 @@ class _HabitacionesViewState extends State<HabitacionesView> {
         ),
         for (final opcion in opciones)
           ChoiceChip(
-            label: Text(_humanizar(opcion)),
+            label: Text(humanizar(opcion)),
             selected: actual == opcion,
             onSelected: (_) => alCambiar(opcion),
           ),
@@ -314,7 +315,7 @@ class _TarjetaHabitacion extends StatelessWidget {
                     for (final estado in estados)
                       PopupMenuItem(
                         value: 'estado:$estado',
-                        child: Text('Estado: ${_humanizar(estado)}'),
+                        child: Text('Estado: ${humanizar(estado)}'),
                       ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
@@ -342,7 +343,7 @@ class _TarjetaHabitacion extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '${_humanizar(habitacion.tipo)} · Capacidad: '
+              '${humanizar(habitacion.tipo)} · Capacidad: '
               '${habitacion.capacidad}',
               style: tema.textTheme.bodyMedium,
             ),
@@ -353,7 +354,7 @@ class _TarjetaHabitacion extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Limpieza: ${_humanizar(habitacion.limpieza)}',
+              'Limpieza: ${humanizar(habitacion.limpieza)}',
               style: tema.textTheme.bodySmall,
             ),
             if (habitacion.descripcion != null) ...[
@@ -389,7 +390,7 @@ class _EtiquetaEstado extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
-        _humanizar(estado),
+        humanizar(estado),
         style: const TextStyle(color: Colors.white, fontSize: 12),
       ),
     );
@@ -513,10 +514,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
                   for (final tipo in widget.catalogos.valores(
                     'tipos_habitacion',
                   ))
-                    DropdownMenuItem(
-                      value: tipo,
-                      child: Text(_humanizar(tipo)),
-                    ),
+                    DropdownMenuItem(value: tipo, child: Text(humanizar(tipo))),
                 ],
                 onChanged: (valor) => setState(() => _tipo = valor ?? _tipo),
                 validator: (valor) => (valor == null || valor.isEmpty)
@@ -561,7 +559,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
                   ))
                     DropdownMenuItem(
                       value: estado,
-                      child: Text(_humanizar(estado)),
+                      child: Text(humanizar(estado)),
                     ),
                 ],
                 onChanged: (valor) =>
@@ -608,14 +606,4 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
       ],
     );
   }
-}
-
-String _humanizar(String valor) {
-  return valor
-      .split('_')
-      .map(
-        (parte) =>
-            parte.isEmpty ? parte : parte[0] + parte.substring(1).toLowerCase(),
-      )
-      .join(' ');
 }

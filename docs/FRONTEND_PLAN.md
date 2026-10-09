@@ -4,11 +4,12 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2, 2b, 3 y 4 completadas**. Login,
-sesion con guardas por rol, shell, dashboard, catalogos cacheados, modulo de
-Habitaciones y modulo de Huespedes (listado paginado con busqueda, registro,
-edicion y detalle), todo en Material 3 sin librerias de UI. Proximas entregas:
-Reservas (nucleo del PMS) y el resto de los modulos.
+Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4 y 5 completadas**. Login,
+sesion con guardas por rol, shell, dashboard, catalogos cacheados y los modulos
+de Habitaciones, Huespedes y Reservas (ciclo de vida completo: disponibilidad,
+creacion, confirmar/cancelar/no-show/check-in/check-out/extender), todo en
+Material 3 sin librerias de UI. Proximas entregas: Fase 6 (consumos, pagos y
+cuenta) y el resto de los modulos.
 
 ---
 
@@ -230,25 +231,44 @@ reservas.
 
 ---
 
-## Fase 5 - Reservas (nucleo del PMS)
+## Fase 5 - Reservas, ciclo de vida principal (COMPLETADA)
 
 **Endpoints**: `GET/POST/PUT /api/reservas`, `GET /api/reservas/{id}`,
 `GET /api/reservas/disponibilidad`, y las acciones
 `confirmar`, `cancelar`, `no-show`, `check-in`, `check-out`, `extender`.
 
-- Listado paginado con filtros `estado`, `habitacionId`, `huespedId`, `desde`, `hasta`.
-- Asistente de creacion: buscar huesped, consultar disponibilidad por rango y
-  tipo, seleccionar habitacion, fijar numero de huespedes y observaciones.
-- Detalle de reserva con acciones segun estado, respetando las transiciones:
-  - `PENDIENTE` -> confirmar / cancelar / editar
-  - `CONFIRMADA` -> check-in / no-show / cancelar / editar
-  - `CHECK_IN` -> consumos / pagos / check-out / extender
-- Cancelar exige motivo (3-500).
-- Check-in y check-out con confirmacion; el check-out muestra el resultado
-  economico (`totalCuenta`, `totalPagado`, `saldoPendiente`) aunque haya saldo.
-- Extender pide `nuevaFechaSalida`.
+Entregado:
 
-**Criterio de cierre**: ciclo de vida completo de una reserva operable end-to-end.
+- **Modelos** (`lib/reservas/models/`): `Reserva` (con resumen de `huesped` y
+  `habitacion`, montos COP y fechas), `ReservaCheckOut` (resultado economico),
+  `CrearReservaRequest` y `DisponibilidadConsulta`.
+- **Servicio** (`lib/reservas/reservas_service.dart`): `listar` (paginado con
+  filtros `estado`, `desde`, `hasta`), `disponibilidad`, `crear`, `obtener` y
+  todas las transiciones de estado (`confirmar`, `cancelar` con `motivo`,
+  `no-show`, `check-in`, `check-out`, `extender`).
+- **Vista** (`lib/reservas/reservas_view.dart`): listado paginado con filtro por
+  estado (`ChoiceChip` desde catalogos) y rango de fechas (pickers); dialogo de
+  nueva reserva con busqueda de huesped, consulta de disponibilidad por rango y
+  seleccion de habitacion; ficha/detalle con acciones contextuales por estado
+  (`PENDIENTE`: Confirmar/Cancelar; `CONFIRMADA`: Check-in/No-show/Cancelar;
+  `CHECK_IN`: Check-out/Extender; las de `CHECK_OUT`/`CANCELADA`/`NO_SHOW` se
+  ocultan). El check-out muestra `totalCuenta`/`totalPagado`/`saldoPendiente`.
+- **Errores en UI**: `detail` del backend en SnackBar para 409
+  (`REGLA_NEGOCIO`/`CONFLICTO`) y 422 de las acciones; en el dialogo de creacion
+  se muestran los errores por campo de 422 y la validacion local de
+  `salida > entrada`.
+- **Reutilizacion**: `BarraPaginacion` y `AvisoError` compartidos; utilidad
+  `humanizar` centralizada en `shared/utils/formato.dart` (tambien aplicada en
+  Habitaciones).
+- **Pruebas** (`test/reservas/`): 11 pruebas del servicio (pagina+filtros,
+  disponibilidad, creacion, check-out, cancelar/extender, 409) y de la vista
+  (listado, filtro de estado que re-consulta, error+reintentar, acciones del
+  detalle, dialogo de nueva reserva).
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (115/115) en verde.
+
+Pendiente (Fase 6): consumos, pagos y cuenta dentro del detalle de reserva.
 
 ---
 
