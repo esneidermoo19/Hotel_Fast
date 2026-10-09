@@ -31,3 +31,46 @@ def test_cors_origin_regex_explicito_precede_al_valor_por_defecto() -> None:
     )
 
     assert configurado.resolved_cors_origin_regex == r"^https://app\.hotel\.com$"
+
+
+def test_cors_origins_se_sanea_desde_json() -> None:
+    configurado = Settings(
+        environment="development",
+        cors_origins='["https://hotelfront.ttr.lat", "https://www.hotelfront.ttr.lat/"]',
+    )
+
+    assert configurado.cors_origins == [
+        "https://hotelfront.ttr.lat",
+        "https://www.hotelfront.ttr.lat",
+    ]
+
+
+def test_cors_origins_se_separa_por_comas() -> None:
+    configurado = Settings(
+        environment="development",
+        cors_origins="https://a.ttr.lat, https://b.ttr.lat/",
+    )
+
+    assert configurado.cors_origins == ["https://a.ttr.lat", "https://b.ttr.lat"]
+
+
+def test_cors_origins_vacio_o_comodin_usan_star() -> None:
+    assert Settings(environment="development", cors_origins="").cors_origins == ["*"]
+    assert Settings(
+        environment="development", cors_origins='["*"]'
+    ).cors_origins == ["*"]
+
+
+def test_cors_allow_credentials_segun_comodin() -> None:
+    assert (
+        Settings(
+            environment="development", cors_origins='["*"]'
+        ).cors_allow_credentials
+        is False
+    )
+    assert (
+        Settings(
+            environment="development", cors_origins='["https://a.ttr.lat"]'
+        ).cors_allow_credentials
+        is True
+    )

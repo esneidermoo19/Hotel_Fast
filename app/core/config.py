@@ -1,3 +1,4 @@
+import json
 from urllib.parse import quote, unquote
 
 from pydantic import field_validator, model_validator
@@ -6,6 +7,44 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_SECRET_KEY = "dev-only-insecure-secret-key-please-change"
 DEVELOPMENT_ENVIRONMENTS = {"development", "dev", "test", "testing"}
 UNSAFE_SECRET_KEY_MARKERS = ("REPLACE_WITH", "CHANGE_ME", "TODO")
+
+DEFAULT_CORS_ORIGINS = ["http://localhost:5173"]
+
+
+def _sanear_origenes_cors(valor: object) -> list[str]:
+    """Normaliza la variable CORS_ORIGINS a una lista de origenes.
+
+    Acepta un string JSON (p. ej. `["https://a.ttr.lat"]`) o una lista separada
+    por comas. Quita espacios y la barra diagonal final. Si la lista queda vacia
+    o contiene `*`, devuelve `["*"]`.
+    """
+    if valor is None:
+        return list(DEFAULT_CORS_ORIGINS)
+
+    if isinstance(valor, str):
+        texto = valor.strip()
+        if not texto:
+            return ["*"]
+        if texto.startswith("["):
+            try:
+                partes = json.loads(texto)
+            except json.JSONDecodeError:
+                partes = [parte for parte in texto.strip("[]").split(",")]
+        else:
+            partes = [parte for parte in texto.split(",")]
+    elif isinstance(valor, (list, tuple)):
+        partes = list(valor)
+    else:
+        partes = [str(valor)]
+
+    origenes = [
+        str(parte).strip().rstrip("/")
+        for parte in partes
+        if parte is not None and str(parte).strip()
+    ]
+    if not origenes or "*" in origenes:
+        return ["*"]
+    return origenes
 
 
 class Settings(BaseSettings):
@@ -16,12 +55,17 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 30
-    cors_origins: list[str] = ["http://localhost:5173"]
+    cors_origins: list[str] = DEFAULT_CORS_ORIGINS
     cors_origin_regex: str | None = None
     login_rate_limit_per_minute: int = 5
     rate_limit_enabled: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def sanear_cors_origins(cls, valor: object) -> list[str]:
+        return _sanear_origenes_cors(valor)
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -80,6 +124,11 @@ class Settings(BaseSettings):
         if self.is_development:
             return r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
         return None
+
+    @property
+    def cors_allow_credentials(self) -> bool:
+        """No se permiten credenciales cuando allow_origins es `["*"]`."""
+        return "*" not in self.cors_origins
 
     @property
     def is_development(self) -> bool:
