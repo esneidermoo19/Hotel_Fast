@@ -6,6 +6,7 @@ import '../app_scope.dart';
 import '../auth/auth_scope.dart';
 import '../auth/models/usuario.dart';
 import '../dashboard/dashboard_view.dart';
+import '../habitaciones/habitaciones_view.dart';
 import 'modulos.dart';
 
 /// Shell principal tras iniciar sesion: menu lateral (escritorio) o drawer
@@ -40,9 +41,20 @@ class _ShellScreenState extends State<ShellScreen> {
     final esEscritorio = ancho >= _anchoEscritorio;
     final indice = _indice < modulos.length ? _indice : 0;
     final moduloActual = modulos[indice];
-    final contenido = moduloActual.id == 'panel'
-        ? DashboardView(service: AppScope.of(context).dashboard)
-        : _ContenidoModulo(modulo: moduloActual, usuario: usuario);
+    final scope = AppScope.of(context);
+    final Widget contenido;
+    switch (moduloActual.id) {
+      case 'panel':
+        contenido = DashboardView(service: scope.dashboard);
+      case 'habitaciones':
+        contenido = HabitacionesView(
+          service: scope.habitaciones,
+          catalogos: scope.catalogos,
+          esAdmin: usuario?.esAdministrador ?? false,
+        );
+      default:
+        contenido = _ContenidoModulo(modulo: moduloActual, usuario: usuario);
+    }
 
     return Scaffold(
       appBar: AppBar(

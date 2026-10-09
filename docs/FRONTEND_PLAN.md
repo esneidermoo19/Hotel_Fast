@@ -4,11 +4,11 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2 y 2b completadas**. Hay login,
-estado de sesion con guardas por rol, shell de navegacion, dashboard con
-tarjetas de indicadores y catalogos cacheados en memoria (Material 3, sin
-librerias de UI). `lib/main.dart` ya arranca la app. Proximas entregas: los
-modulos de negocio (habitaciones, huespedes, reservas, etc.).
+Estado actual del frontend: **Fases 0, 1, 2, 2b y 3 completadas**. Login, sesion
+con guardas por rol, shell, dashboard, catalogos cacheados y modulo de
+Habitaciones (listado, filtros, CRUD y acciones de estado/limpieza), todo en
+Material 3 sin librerias de UI. Proximas entregas: Huespedes, Reservas, y el
+resto de los modulos de negocio.
 
 ---
 
@@ -165,17 +165,35 @@ Pendiente: formatos configurables de fecha/moneda en presentaciones futuras.
 
 ---
 
-## Fase 3 - Habitaciones
+## Fase 3 - Habitaciones (COMPLETADA)
 
 **Endpoints**: `GET/POST/PUT/DELETE /api/habitaciones`,
-`GET /api/habitaciones/{id}`, `PATCH .../estado`, `PATCH .../limpieza`.
+`PATCH .../estado`, `PATCH .../limpieza`.
 
-- Listado con filtros `estado`, `tipo`, `limpieza` (respuesta sin paginar).
-- Alta/edicion/eliminacion solo para `ADMIN` (confirmacion antes de eliminar).
-- Cambio rapido de estado y de limpieza (permitido a `RECEPCION`).
-- Tablero visual de estados de habitacion (opcional, en una fase posterior).
+Entregado:
 
-**Criterio de cierre**: CRUD completo con validaciones del backend reflejadas.
+- **Modelos y servicio** (`lib/habitaciones/`): `Habitacion` (parseo de
+  `precioPorNoche` como numero COP) y `HabitacionPayload`; `HabitacionesService`
+  con `listar` (filtros `estado`/`tipo`/`limpieza`), `crear`, `actualizar`,
+  `cambiarEstado`, `cambiarLimpieza` y `eliminar`.
+- **Vista** (`habitaciones_view.dart`): tarjetas responsivas (Wrap de `Card`
+  M3), filtros por estado y tipo con `ChoiceChip` (valores desde los catalogos
+  precargados), accion rapida de estado/limpieza via `PopupMenuButton`,
+  formulario en dialogo para crear/editar (reutiliza catalogos) y eliminacion
+  con confirmacion. Solo `ADMIN` ve crear/editar/eliminar.
+- **Errores en UI**: SnackBar con `detail` del backend para 409
+  (`CONFLICTO`/`REGLA_NEGOCIO`) y 403; en el formulario se muestran los errores
+  por campo de 422 (`VALIDACION`).
+- **Pruebas** (`test/habitaciones/`): 9 pruebas del servicio (parseo, filtros,
+  metodos HTTP, propagacion de 409) y de la vista (listado, error+reintentar,
+  dialogo admin, restriccion RECEPCION).
+
+Decisiones de alcance: el backend **no pagina** habitaciones (arreglo completo) y
+**no ofrece busqueda por texto** en `GET /api/habitaciones`, por lo que no se
+invento paginacion ni buscador; solo los filtros confirmados.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (95/95) en verde.
 
 ---
 
