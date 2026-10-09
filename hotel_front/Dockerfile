@@ -1,33 +1,27 @@
 # Etapa 1: Compilación de Flutter Web
-FROM instrumentisto/flutter:3.27.1 AS build
+FROM fservant/flutter:3.29.0 AS build
 
 WORKDIR /app
 
-# Desactivar avisos de superusuario en CI
 ENV CI=true
 
-# Copiar el pubspec
-COPY pubspec.yaml ./
-
-# Si existe pubspec.lock, opcionalmente podrías ignorarlo o copiarlo; 
-# copiar pubspec.yaml primero asegura que resuelva dependencias con el SDK actual
-COPY pubspec.lock ./
-
+# Copiar dependencias e instalar
+COPY pubspec.yaml pubspec.lock ./
 RUN flutter pub get
 
-# Copiar el resto del código fuente
+# Copiar código fuente
 COPY . .
 
-# Compilar la aplicación para Web
+# Compilar Flutter Web
 RUN flutter build web --release --dart-define=API_BASE_URL=https://www.api.ttr.lat
 
-# Etapa 2: Servidor web de producción con Nginx
+# Etapa 2: Servidor web ligero con Nginx
 FROM nginx:alpine
 
-# Copiar los estáticos de Flutter
+# Copiar estáticos compilados
 COPY --from=build /app/build/web /usr/share/nginx/html
 
-# Copiar configuración personalizada de Nginx
+# Copiar configuración de Nginx para SPAs
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
