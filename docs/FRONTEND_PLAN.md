@@ -4,11 +4,12 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **Fases 0, 1, 2, 2b y 3 completadas**. Login, sesion
-con guardas por rol, shell, dashboard, catalogos cacheados y modulo de
-Habitaciones (listado, filtros, CRUD y acciones de estado/limpieza), todo en
-Material 3 sin librerias de UI. Proximas entregas: Huespedes, Reservas, y el
-resto de los modulos de negocio.
+Estado actual del frontend: **Fases 0, 1, 2, 2b, 3, 4 y 5 completadas**. Login,
+sesion con guardas por rol, shell, dashboard, catalogos cacheados y los modulos
+de Habitaciones, Huespedes y Reservas (ciclo de vida completo: disponibilidad,
+creacion, confirmar/cancelar/no-show/check-in/check-out/extender), todo en
+Material 3 sin librerias de UI. Proximas entregas: Fase 6 (consumos, pagos y
+cuenta) y el resto de los modulos.
 
 ---
 
@@ -197,40 +198,77 @@ invento paginacion ni buscador; solo los filtros confirmados.
 
 ---
 
-## Fase 4 - Huespedes
+## Fase 4 - Huespedes (COMPLETADA)
 
 **Endpoints**: `GET/POST/PUT/DELETE /api/huespedes`,
 `GET /api/huespedes/{id}`, `GET /api/huespedes/{id}/reservas`.
 
-- Listado paginado con busqueda `q` y filtros de documento.
-- Formulario con validaciones (documento 4-20 alfanumerico, telefono, email,
-  fecha de nacimiento no futura).
-- Detalle con historial de reservas del huesped (paginado).
-- Eliminar solo `ADMIN` y solo sin reservas.
+Entregado:
 
-**Criterio de cierre**: flujo de alta y busqueda completo; widget de paginacion reutilizable.
+- **Modelos y servicio** (`lib/huespedes/`): `Huesped` (con `nombreCompleto` y
+  `documento`) y `HuespedPayload`; `HuespedesService` con `listar` paginado
+  (`pagina`/`tamano`, `q`, `tipoDocumento`, `numeroDocumento`) usando la util
+  generica `Pagina<T>` de la Fase 0, mas `crear`, `actualizar` y `eliminar`.
+- **Vista** (`huespedes_view.dart`): listado paginado responsivo (tarjetas con
+  iniciales, nombre y documento), barra de busqueda por nombre o documento
+  (`q`), controles de paginacion previo/siguiente, detalle rapido en dialogo,
+  y formulario en dialogo para registrar/editar (validaciones por contrato:
+  documento 4-20 alfanumerico, telefono `\+?\d{7,15}`, correo y fecha de
+  nacimiento no futura; integra el catalogo `tipos_documento`). Eliminar solo
+  `ADMIN` y con confirmacion.
+- **Errores en UI**: en el formulario se muestran los del 409 (`CONFLICTO`,
+  documento duplicado) y 422 (`VALIDACION` por campo); el resto via SnackBar.
+- **Pruebas** (`test/huespedes/`): 9 pruebas del servicio (parseo de pagina,
+  query de busqueda, cuerpo de creacion, 409) y de la vista (listado, busqueda
+  que re-consulta, estado de error, dialogo admin, restriccion RECEPCION).
+
+Pendiente (se difiere a Fase 5): detalle del huesped con historial de reservas
+(`GET /api/huespedes/{id}/reservas`), que se integrara junto al modulo de
+reservas.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (104/104) en verde.
 
 ---
 
-## Fase 5 - Reservas (nucleo del PMS)
+## Fase 5 - Reservas, ciclo de vida principal (COMPLETADA)
 
 **Endpoints**: `GET/POST/PUT /api/reservas`, `GET /api/reservas/{id}`,
 `GET /api/reservas/disponibilidad`, y las acciones
 `confirmar`, `cancelar`, `no-show`, `check-in`, `check-out`, `extender`.
 
-- Listado paginado con filtros `estado`, `habitacionId`, `huespedId`, `desde`, `hasta`.
-- Asistente de creacion: buscar huesped, consultar disponibilidad por rango y
-  tipo, seleccionar habitacion, fijar numero de huespedes y observaciones.
-- Detalle de reserva con acciones segun estado, respetando las transiciones:
-  - `PENDIENTE` -> confirmar / cancelar / editar
-  - `CONFIRMADA` -> check-in / no-show / cancelar / editar
-  - `CHECK_IN` -> consumos / pagos / check-out / extender
-- Cancelar exige motivo (3-500).
-- Check-in y check-out con confirmacion; el check-out muestra el resultado
-  economico (`totalCuenta`, `totalPagado`, `saldoPendiente`) aunque haya saldo.
-- Extender pide `nuevaFechaSalida`.
+Entregado:
 
-**Criterio de cierre**: ciclo de vida completo de una reserva operable end-to-end.
+- **Modelos** (`lib/reservas/models/`): `Reserva` (con resumen de `huesped` y
+  `habitacion`, montos COP y fechas), `ReservaCheckOut` (resultado economico),
+  `CrearReservaRequest` y `DisponibilidadConsulta`.
+- **Servicio** (`lib/reservas/reservas_service.dart`): `listar` (paginado con
+  filtros `estado`, `desde`, `hasta`), `disponibilidad`, `crear`, `obtener` y
+  todas las transiciones de estado (`confirmar`, `cancelar` con `motivo`,
+  `no-show`, `check-in`, `check-out`, `extender`).
+- **Vista** (`lib/reservas/reservas_view.dart`): listado paginado con filtro por
+  estado (`ChoiceChip` desde catalogos) y rango de fechas (pickers); dialogo de
+  nueva reserva con busqueda de huesped, consulta de disponibilidad por rango y
+  seleccion de habitacion; ficha/detalle con acciones contextuales por estado
+  (`PENDIENTE`: Confirmar/Cancelar; `CONFIRMADA`: Check-in/No-show/Cancelar;
+  `CHECK_IN`: Check-out/Extender; las de `CHECK_OUT`/`CANCELADA`/`NO_SHOW` se
+  ocultan). El check-out muestra `totalCuenta`/`totalPagado`/`saldoPendiente`.
+- **Errores en UI**: `detail` del backend en SnackBar para 409
+  (`REGLA_NEGOCIO`/`CONFLICTO`) y 422 de las acciones; en el dialogo de creacion
+  se muestran los errores por campo de 422 y la validacion local de
+  `salida > entrada`.
+- **Reutilizacion**: `BarraPaginacion` y `AvisoError` compartidos; utilidad
+  `humanizar` centralizada en `shared/utils/formato.dart` (tambien aplicada en
+  Habitaciones).
+- **Pruebas** (`test/reservas/`): 11 pruebas del servicio (pagina+filtros,
+  disponibilidad, creacion, check-out, cancelar/extender, 409) y de la vista
+  (listado, filtro de estado que re-consulta, error+reintentar, acciones del
+  detalle, dialogo de nueva reserva).
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (115/115) en verde.
+
+Pendiente (Fase 6): consumos, pagos y cuenta dentro del detalle de reserva.
 
 ---
 
