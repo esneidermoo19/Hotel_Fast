@@ -1,4 +1,6 @@
 services:
+  # Base de datos PostgreSQL embebida: solo para despliegue self-hosted.
+  # Con Supabase no se usa este servicio; la API apunta a DATABASE_URL.
   db:
     image: postgres:16-alpine
     environment:
@@ -28,7 +30,15 @@ services:
       LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-5}
       RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required in production}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CORS_ORIGIN_REGEX: ${CORS_ORIGIN_REGEX:-}
+      # URL de base de datos como secreto (no se construye desde POSTGRES_*).
+      # Supabase, conexion directa (recomendada para migraciones):
+      #   DATABASE_URL=postgresql+psycopg://postgres:<PASSWORD>@db.<REF>.supabase.co:5432/postgres
+      # Supabase, session pooler (puerto 5432, usuario postgres.<REF>):
+      #   DATABASE_URL=postgresql+psycopg://postgres.<REF>:<PASSWORD>@aws-0-us-west-2.pooler.supabase.com:5432/postgres
+      # Self-hosted local (usa el servicio `db`):
+      #   DATABASE_URL=postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
       SEED_ADMIN_USERNAME: ${SEED_ADMIN_USERNAME:-}
       SEED_ADMIN_NOMBRE: ${SEED_ADMIN_NOMBRE:-}
