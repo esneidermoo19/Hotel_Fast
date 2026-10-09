@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import 'auditoria/auditoria_service.dart';
 import 'catalogos/catalogos_service.dart';
 import 'consumos/consumos_service.dart';
 import 'cuentas/cuentas_service.dart';
@@ -8,6 +9,7 @@ import 'habitaciones/habitaciones_service.dart';
 import 'huespedes/huespedes_service.dart';
 import 'pagos/pagos_service.dart';
 import 'reservas/reservas_service.dart';
+import 'usuarios/usuarios_service.dart';
 
 /// Provee a las pantallas los servicios compartidos de la aplicacion.
 ///
@@ -24,6 +26,8 @@ class AppScope extends InheritedWidget {
     required this.cuentas,
     required this.consumos,
     required this.pagos,
+    required this.usuarios,
+    required this.auditoria,
     required super.child,
   });
 
@@ -35,6 +39,8 @@ class AppScope extends InheritedWidget {
   final CuentasService cuentas;
   final ConsumosService consumos;
   final PagosService pagos;
+  final UsuariosService usuarios;
+  final AuditoriaService auditoria;
 
   static AppScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppScope>();
