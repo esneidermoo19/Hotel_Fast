@@ -163,8 +163,17 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], name=op.f('fk_auditoria_usuario_id_usuarios'), ondelete='SET NULL'),
         sa.PrimaryKeyConstraint('id', name=op.f('pk_auditoria')),
     )
-    # Agregar columna limpieza a habitaciones (enum ya creado arriba)
-    op.add_column('habitaciones', sa.Column('limpieza', estado_limpieza_enum, nullable=False))
+    # Agregar columna limpieza a habitaciones (enum ya creado arriba).
+    # Se agrega como nullable, se rellena y luego se exige NOT NULL para no
+    # fallar en bases que ya tienen filas (p. ej. Supabase en produccion).
+    op.add_column('habitaciones', sa.Column('limpieza', estado_limpieza_enum, nullable=True))
+    op.execute("UPDATE habitaciones SET limpieza = 'LIMPIA'")
+    op.alter_column(
+        'habitaciones',
+        'limpieza',
+        existing_type=estado_limpieza_enum,
+        nullable=False,
+    )
     op.alter_column('habitaciones', 'precio_por_noche',
                existing_type=sa.NUMERIC(precision=10, scale=2),
                type_=sa.Numeric(precision=12, scale=2),
