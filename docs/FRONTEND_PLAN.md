@@ -4,9 +4,11 @@ Proyecto: `hotel_front` (Flutter y Dart; primera plataforma Web, luego Android y
 Windows). Este plan se apoya unicamente en los endpoints confirmados en
 `docs/API_CONTRACT.md`. No se planifica funcionalidad que el backend no exponga.
 
-Estado actual del frontend: **esqueleto vacio**. `lib/main.dart` esta en blanco y
-`test/widget_test.dart` todavia referencia `MyApp`. `pubspec.yaml` solo trae
-`cupertino_icons` y `flutter_lints`. Hay que construir la base completa.
+Estado actual del frontend: **Fases 0, 1, 2 y 2b completadas**. Hay login,
+estado de sesion con guardas por rol, shell de navegacion, dashboard con
+tarjetas de indicadores y catalogos cacheados en memoria (Material 3, sin
+librerias de UI). `lib/main.dart` ya arranca la app. Proximas entregas: los
+modulos de negocio (habitaciones, huespedes, reservas, etc.).
 
 ---
 
@@ -23,62 +25,143 @@ Estado actual del frontend: **esqueleto vacio**. `lib/main.dart` esta en blanco 
 
 ---
 
-## Fase 0 - Fundaciones tecnicas
+## Fase 0 - Fundaciones tecnicas (COMPLETADA)
 
 **Objetivo**: base del proyecto sin pantallas de negocio.
 
-- Configuracion de entorno: URL base de la API via `--dart-define`
-  (`String.fromEnvironment`), con valor por defecto para desarrollo.
-- Cliente HTTP (paquete `http` o `dio`) envuelto en un servicio central.
-- Modelo de error tipado mapeando el sobre
-  `{ detail, code, errors[] }` a una excepcion de aplicacion (`ApiException`).
-- Manejo de 401: disparar renovacion de sesion (ver Fase 1) o cerrar sesion.
-- Infraestructura de modelos con serializacion JSON en camelCase
-  (recomendado `freezed`+`json_serializable`, o manual si se quiere evitar codegen).
-- Almacenamiento de tokens: evaluar seguridad. En Web, `localStorage` es accesible
-  por scripts; documentar el riesgo. Alternativas: memoria + refresh, o
-  `flutter_secure_storage` (no disponible en Web) con estrategia por plataforma.
-- Tema y estructura de carpetas (`lib/core`, `lib/models`, `lib/services`,
-  `lib/features/*`).
-- Widgets de estado reutilizables: carga, vacio, error y exito.
+Entregado:
 
-**Criterio de cierre**: `flutter analyze` y `flutter test` en verde; un test del
-cliente HTTP y del mapeo de errores.
+- **Estructura** en `lib/`: `config/`, `core/network/`, `shared/models/`,
+  `shared/utils/` (las carpetas `screens/`, `widgets/`, `providers/`, `routes/`,
+  `services/` quedan reservadas para fases posteriores).
+- **Configuracion** (`lib/config/app_config.dart`): URL base por `--dart-define`
+  (`API_BASE_URL`), valor por defecto `http://localhost:8000` para desarrollo,
+  timeout configurable y resolucion segura de rutas y query params.
+- **Cliente HTTP** (`lib/core/network/api_client.dart`): envuelve `package:http`,
+  metodos `get/post/put/patch/delete`, timeout, decodificacion UTF-8, y conversion
+  de toda falla a `ApiException`. Sin gestion de tokens (Fase 1).
+- **Errores** (`lib/core/network/`): `ApiException`, `ErrorCampo`,
+  `CodigosError` y `ErrorMapper`, que interpreta el sobre
+  `{ detail, code, errors[] }` usando `code` como referencia estable. Contempla
+  409 `CONFLICTO`/`REGLA_NEGOCIO` y 422 `VALIDACION` con detalle por campo,
+  ademas de errores de red y tiempo de espera.
+- **Compartidos** (`lib/shared/`): `Pagina<T>` (`{items,total,pagina,tamano}`) y
+  utilidades `lectura_json.dart` (camelCase defensivo), `fecha_hora.dart`
+  (`YYYY-MM-DD` e ISO-8601 tratando la falta de offset como UTC) y `moneda.dart`
+  (lectura y formato de importes COP).
+- **Pruebas** (`test/`): 54 pruebas unitarias de configuracion, serializacion,
+  mapeo de errores y cliente HTTP con `MockClient` (sin servidor activo). Se
+  elimino `test/widget_test.dart`, la plantilla del contador que referenciaba un
+  `MyApp` inexistente.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (54/54) en verde.
+
+Pendiente para fases siguientes: widgets de estado (carga/vacio/error/exito), tema,
+inyeccion de dependencias y almacenamiento/renovacion de tokens (Fase 1).
 
 ---
 
-## Fase 1 - Autenticacion y sesion
+## Fase 1 - Autenticacion y sesion (COMPLETADA la capa de datos)
 
 **Endpoints**: `POST /api/auth/login`, `POST /api/auth/refresh`,
-`POST /api/auth/logout`, `POST /api/auth/cambiar-password`, `GET /api/auth/me`.
+`POST /api/auth/logout`, `POST /api/auth/me`.
 
-- Pantalla de login por `username` o `email` + contrasena.
-- Guardar `token`, `refreshToken` y `expiresIn`.
-- Renovacion automatica: antes de expirar (`expiresIn`), llamar a `refresh`.
-  Recordar que la rotacion invalida el token anterior y que reutilizar un token
-  rotado revoca la sesion completa.
-- Logout revocando el `refreshToken` actual.
-- Interceptor/rutina que agrega `Authorization: Bearer <token>`.
-- Guardas de ruta por rol (`ADMIN` / `RECEPCION`) usando `role` de login y `/me`.
-- Manejo de 429 (`DEMASIADAS_SOLICITUDES`) con mensaje y `Retry-After`.
-- Pantalla de cambio de contrasena propia.
+Entregado (sin pantallas):
 
-**Criterio de cierre**: login/logout/refresh probados contra la API; test del
-flujo de renovacion y del manejo de 401.
+- **Modelos** (`lib/auth/models/`): `LoginRequest`, `AuthTokenResponse`
+  (`token`/`refreshToken`/`tokenType`/`expiresIn`) y `Usuario`.
+- **Persistencia** (`lib/auth/auth_storage.dart`): guarda/lee/borra los tokens con
+  `shared_preferences` (Web, Android, Windows). En Web el respaldo es
+  `localStorage`; riesgo aceptado en esta fase (access de vida corta + refresh
+  rotativo). Evaluar almacenamiento seguro por plataforma antes de produccion.
+- **Servicio** (`lib/auth/auth_service.dart`): `iniciarSesion`, `usuarioActual`,
+  `cerrarSesion` (best-effort: limpia la sesion local aunque el servidor falle),
+  `refrescar` y `restaurarSesion`. Persiste siempre el **ultimo** `refreshToken`
+  recibido (rotacion del backend).
+- **Interceptor** (`lib/core/network/`): `ApiClient` adjunta
+  `Authorization: Bearer`, y ante un 401 renueva una vez y reintenta; si la
+  renovacion falla, limpia la sesion y relanza el 401. El refresco es
+  *single-flight* para no presentar el mismo refresh token dos veces (lo que
+  revocaria la familia completa).
+- **Pruebas** (`test/auth/`, `test/core/network/api_client_auth_test.dart`): 14
+  pruebas del flujo de login, persistencia, rotacion, logout e interceptor con
+  `MockClient` y `SharedPreferences` en memoria.
+
+**Pendiente de la Fase 1** (UI): pantalla de login, guardas de ruta por rol
+(`ADMIN`/`RECEPCION`), manejo visible de 429 y pantalla de cambio de contrasena.
+Se posponen a la fase de UI (junto con el shell de la Fase 2).
+
+**Criterio de cierre**: capa de datos y renovacion cubiertas por pruebas (68/68);
+la verificacion contra la API real y las pantallas quedan para la fase de UI.
 
 ---
 
-## Fase 2 - Shell, navegacion y dashboard
+## Fase 2 - Login, estado de sesion y shell (COMPLETADA)
+
+**Endpoints usados**: `POST /api/auth/login`, `GET /api/auth/me`,
+`POST /api/auth/logout`, `POST /api/auth/refresh` (via interceptor).
+
+Entregado:
+
+- **Estado global** (`lib/auth/auth_controller.dart`, `lib/auth/auth_scope.dart`):
+  `AuthController` ([ChangeNotifier] nativo, sin paquetes de estado) con
+  `EstadoAuth` (`cargando` / `sinSesion` / `autenticado`), expuesto por
+  `AuthScope` ([InheritedNotifier]). `restaurar()` valida la sesion persistida
+  con `/me`; un refresco fallido devuelve la app al login (hook `alExpirar`).
+- **Login** (`lib/screens/login_screen.dart`): formulario responsivo (usuario o
+  correo + contrasena con mostrar/ocultar), estados de carga, error de
+  credenciales (401), validacion (422) y rate limit (429). Detecta `@` para
+  enviar `email` o `username`.
+- **Shell** (`lib/screens/shell_screen.dart`, `lib/screens/modulos.dart`):
+  `NavigationRail` en escritorio (>= 900 px, extendido >= 1200) y `Drawer` en
+  pantallas angostas; menu filtrado por rol (ADMIN ve Usuarios y Auditoria;
+  RECEPCION no), vista placeholder por modulo y logout con confirmacion.
+- **Arranque** (`lib/main.dart`, `lib/app.dart`): compone `ApiClient` +
+  `AuthService` + `AuthController` y decide entre carga, login y shell.
+
+Decisiones visuales: solo Material 3 nativo (sin librerias de UI), un acento azul
+(`ColorScheme.fromSeed`), layout centrado de ancho maximo 420 en login, y
+navegacion lateral adaptativa. "Ocultar un boton no autoriza": el backend sigue
+siendo la autoridad; la UI solo filtra lo visible.
+
+**Pendiente de esta fase** (se difiere): dashboard con los indicadores
+(`GET /api/dashboard`) y carga de catalogos (`GET /api/catalogos`) para poblar
+desplegables. Endpoints confirmados en `docs/API_CONTRACT.md`; quedan para la
+siguiente entrega de UI.
+
+**Criterio de cierre**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (79/79) en verde, con pruebas de controlador de sesion y widgets
+de login/shell.
+
+---
+
+## Fase 2b - Dashboard y catalogos (COMPLETADA)
 
 **Endpoints**: `GET /api/dashboard`, `GET /api/catalogos`.
 
-- Layout con navegacion lateral (escritorio) y adaptacion movil.
-- Menu condicionado por rol (ocultar no es autorizar; el backend valida).
-- Dashboard con los 8 indicadores confirmados.
-- Carga de catalogos al iniciar sesion para poblar desplegables.
-- Formatos configurables de fecha y moneda (COP). Los montos llegan como numero.
+Entregado:
 
-**Criterio de cierre**: dashboard con estados de carga/error; catalogos cacheados.
+- **Catalogos** (`lib/catalogos/`): modelo `Catalogo` (`nombre`, `etiqueta`,
+  `valores[]`) y `CatalogosService` con cache en memoria y carga unica
+  (single-flight). Se precarga al entrar al shell (`ShellScreen`) y queda
+  disponible para futuras pantallas via `AppScope` con `obtener(nombre)` y
+  `valores(nombre)`, sin peticiones repetidas.
+- **Dashboard** (`lib/dashboard/`): modelo `DashboardResumen` (los 8
+  indicadores del contrato) y `DashboardService` para `GET /api/dashboard`.
+  `DashboardView` renderiza tarjetas de Material 3 (icono + valor + etiqueta)
+  en un `Wrap` responsivo, con estados de carga, error (con reintentar) y datos.
+- **Integracion**: el modulo `Panel` del shell muestra el dashboard; los
+  servicios se crean una vez en `HotelApp` y se exponen con `AppScope`
+  ([InheritedWidget] nativo). El resto de modulos conserva el placeholder.
+- **Pruebas** (`test/catalogos/`, `test/dashboard/`): 7 pruebas de parseo del
+  dashboard, cache de catalogos, concurrencia y estados de la vista con mocks.
+
+**Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
+`flutter test` (86/86) en verde. Sin librerias de graficos: tarjetas numericas
+de Material.
+
+Pendiente: formatos configurables de fecha/moneda en presentaciones futuras.
 
 ---
 
