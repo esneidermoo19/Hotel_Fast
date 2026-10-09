@@ -4,9 +4,12 @@ import 'app_scope.dart';
 import 'auth/auth_controller.dart';
 import 'auth/auth_scope.dart';
 import 'catalogos/catalogos_service.dart';
+import 'consumos/consumos_service.dart';
+import 'cuentas/cuentas_service.dart';
 import 'dashboard/dashboard_service.dart';
 import 'habitaciones/habitaciones_service.dart';
 import 'huespedes/huespedes_service.dart';
+import 'pagos/pagos_service.dart';
 import 'reservas/reservas_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
@@ -40,6 +43,13 @@ class _HotelAppState extends State<HotelApp> {
   late final ReservasService _reservas = ReservasService(
     widget.controller.auth.api,
   );
+  late final CuentasService _cuentas = CuentasService(
+    widget.controller.auth.api,
+  );
+  late final ConsumosService _consumos = ConsumosService(
+    widget.controller.auth.api,
+  );
+  late final PagosService _pagos = PagosService(widget.controller.auth.api);
 
   @override
   Widget build(BuildContext context) {
@@ -58,6 +68,9 @@ class _HotelAppState extends State<HotelApp> {
           habitaciones: _habitaciones,
           huespedes: _huespedes,
           reservas: _reservas,
+          cuentas: _cuentas,
+          consumos: _consumos,
+          pagos: _pagos,
           child: AnimatedBuilder(
             animation: widget.controller,
             builder: (context, _) {

@@ -65,6 +65,9 @@ class _ShellScreenState extends State<ShellScreen> {
           service: scope.reservas,
           catalogos: scope.catalogos,
           huespedes: scope.huespedes,
+          cuentas: scope.cuentas,
+          consumos: scope.consumos,
+          pagos: scope.pagos,
         );
       default:
         contenido = _ContenidoModulo(modulo: moduloActual, usuario: usuario);

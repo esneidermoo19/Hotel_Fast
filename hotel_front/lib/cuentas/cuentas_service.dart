@@ -10,8 +10,6 @@ class CuentasService {
 
   Future<CuentaReserva> obtener(int reservaId) async {
     final data = await api.get('/api/cuentas/$reservaId');
-    return CuentaReserva.fromJson(
-      leerMapa(data) ?? const <String, dynamic>{},
-    );
+    return CuentaReserva.fromJson(leerMapa(data) ?? const <String, dynamic>{});
   }
 }
