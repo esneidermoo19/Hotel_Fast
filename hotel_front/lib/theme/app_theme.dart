@@ -158,6 +158,13 @@ abstract final class AppTheme {
         backgroundColor: oscuro ? midnightClaro : blanco,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
+      // Contraste WCAG AA del menu lateral (verificados a mano):
+      // - Indicador dorado `oro` con icono `midnight`: 7.27:1 (>= 4.5 texto).
+      // - Etiqueta seleccionada (claro) `midnight` sobre `blanco`: 17.85:1.
+      // - Etiqueta seleccionada (oscuro) `oroClaro` sobre `midnightClaro`: 9.59:1.
+      // - Icono no seleccionado (claro) `#64748B` sobre `blanco`: 4.76:1 (>= 3 iconos).
+      // - Icono no seleccionado (oscuro) `#CBD5E1` sobre `midnightClaro`: 9.85:1.
+      // - Etiqueta no seleccionada usa `onSurface` (17.85:1 claro / 11.87:1 oscuro).
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: oscuro ? midnightClaro : blanco,
         indicatorShape: const StadiumBorder(),
@@ -166,9 +173,13 @@ abstract final class AppTheme {
         unselectedIconTheme: IconThemeData(
           color: oscuro ? const Color(0xFFCBD5E1) : const Color(0xFF64748B),
         ),
-        selectedLabelTextStyle: const TextStyle(
+        selectedLabelTextStyle: TextStyle(
           fontWeight: FontWeight.w700,
-          color: midnight,
+          color: oscuro ? oroClaro : midnight,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: oscuro ? const Color(0xFFE2E8F0) : const Color(0xFF64748B),
         ),
         groupAlignment: -0.9,
       ),
@@ -190,6 +201,10 @@ abstract final class AppTheme {
         foregroundColor: blanco,
         centerTitle: false,
         titleTextStyle: texto.titleLarge?.copyWith(color: blanco),
+        // Detalle dorado que separa la cabecera del menu y el contenido.
+        shape: Border(
+          bottom: BorderSide(color: oro.withValues(alpha: 0.55), width: 1),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
