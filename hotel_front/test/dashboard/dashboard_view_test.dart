@@ -29,6 +29,11 @@ String _dashboardJson() {
 
 void main() {
   testWidgets('muestra las tarjetas con los indicadores', (tester) async {
+    tester.view.physicalSize = const Size(1400, 1200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final servicio = DashboardService(
       crearApiSimulada((request) async => http.Response(_dashboardJson(), 200)),
     );
