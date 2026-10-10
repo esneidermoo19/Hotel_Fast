@@ -5,6 +5,7 @@ import '../core/network/api_exception.dart';
 import '../shared/utils/formato.dart';
 import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
+import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
 import '../widgets/pastilla_estado.dart';
 import '../widgets/tarjeta_hover.dart';
@@ -91,10 +92,10 @@ class _HabitacionesViewState extends State<HabitacionesView> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar habitacion'),
+        title: const Text('Eliminar habitación'),
         content: Text(
-          'Se eliminara la habitacion #${habitacion.numero}. '
-          'Esta accion no se puede deshacer.',
+          'Se eliminará la habitación #${habitacion.numero}. '
+          'Esta acción no se puede deshacer.',
         ),
         actions: [
           TextButton(
@@ -148,7 +149,7 @@ class _HabitacionesViewState extends State<HabitacionesView> {
                 FilledButton.icon(
                   onPressed: () => _abrirFormulario(),
                   icon: const Icon(Icons.add),
-                  label: const Text('Nueva habitacion'),
+                  label: const Text('Nueva habitación'),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -189,7 +190,7 @@ class _HabitacionesViewState extends State<HabitacionesView> {
             future: _futuro,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ListaEsqueleto();
               }
               if (snapshot.hasError) {
                 final err = snapshot.error;
@@ -465,7 +466,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_esNueva ? 'Nueva habitacion' : 'Editar habitacion'),
+      title: Text(_esNueva ? 'Nueva habitación' : 'Editar habitación'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -474,12 +475,12 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
             children: [
               TextFormField(
                 controller: _numero,
-                decoration: const InputDecoration(labelText: 'Numero'),
+                decoration: const InputDecoration(labelText: 'Número'),
                 keyboardType: TextInputType.number,
                 validator: (valor) {
                   final numero = int.tryParse(valor ?? '');
                   return (numero == null || numero <= 0)
-                      ? 'Ingresa un numero valido'
+                      ? 'Ingresa un número válido'
                       : null;
                 },
               ),
@@ -522,7 +523,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
                 validator: (valor) {
                   final numero = double.tryParse(valor ?? '');
                   return (numero == null || numero <= 0)
-                      ? 'Ingresa un precio valido'
+                      ? 'Ingresa un precio válido'
                       : null;
                 },
               ),
@@ -545,7 +546,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _descripcion,
-                decoration: const InputDecoration(labelText: 'Descripcion'),
+                decoration: const InputDecoration(labelText: 'Descripción'),
                 maxLength: 300,
                 buildCounter: (
                   _, {

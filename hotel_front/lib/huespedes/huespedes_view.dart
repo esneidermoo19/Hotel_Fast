@@ -5,6 +5,7 @@ import '../core/network/api_exception.dart';
 import '../shared/models/pagina.dart';
 import '../shared/utils/fecha_hora.dart';
 import '../widgets/aviso_error.dart';
+import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
 import '../widgets/tarjeta_hover.dart';
 import 'huespedes_service.dart';
@@ -99,9 +100,9 @@ class _HuespedesViewState extends State<HuespedesView> {
     final confirmado = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Eliminar huesped'),
+        title: const Text('Eliminar huésped'),
         content: Text(
-          'Se eliminara a ${huesped.nombreCompleto}. '
+          'Se eliminará a ${huesped.nombreCompleto}. '
           'No se puede eliminar si tiene reservas.',
         ),
         actions: [
@@ -150,7 +151,7 @@ class _HuespedesViewState extends State<HuespedesView> {
                 FilledButton.icon(
                   onPressed: () => _abrirFormulario(),
                   icon: const Icon(Icons.person_add_outlined),
-                  label: const Text('Nuevo huesped'),
+                  label: const Text('Nuevo huésped'),
                 ),
                 const SizedBox(width: 8),
               ],
@@ -190,14 +191,14 @@ class _HuespedesViewState extends State<HuespedesView> {
             future: _futuro,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ListaEsqueleto();
               }
               if (snapshot.hasError) {
                 final err = snapshot.error;
                 return AvisoError(
                   mensaje: err is ApiException
                       ? err.mensaje
-                      : 'No se pudieron cargar los huespedes.',
+                      : 'No se pudieron cargar los huéspedes.',
                   alReintentar: _recargar,
                 );
               }
@@ -205,7 +206,7 @@ class _HuespedesViewState extends State<HuespedesView> {
               if (pagina.items.isEmpty) {
                 return const EstadoVacio(
                   icono: Icons.people_outline,
-                  mensaje: 'No se encontraron huespedes.',
+                  mensaje: 'No se encontraron huéspedes.',
                 );
               }
               final totalPaginas = _totalPaginas(pagina);
@@ -229,7 +230,7 @@ class _HuespedesViewState extends State<HuespedesView> {
                     ),
                   ),
                   _BarraPaginacion(
-                    etiqueta: 'Pagina $_pagina de $totalPaginas',
+                    etiqueta: 'Página $_pagina de $totalPaginas',
                     alAnterior: _pagina > 1
                         ? () => _irPagina(_pagina - 1)
                         : null,
@@ -332,7 +333,7 @@ class _BarraPaginacion extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           IconButton(
-            tooltip: 'Pagina anterior',
+            tooltip: 'Página anterior',
             icon: const Icon(Icons.chevron_left),
             onPressed: alAnterior,
           ),
@@ -341,7 +342,7 @@ class _BarraPaginacion extends StatelessWidget {
             child: Text(etiqueta),
           ),
           IconButton(
-            tooltip: 'Pagina siguiente',
+            tooltip: 'Página siguiente',
             icon: const Icon(Icons.chevron_right),
             onPressed: alSiguiente,
           ),
@@ -360,15 +361,15 @@ class _DialogoDetalleHuesped extends StatelessWidget {
   Widget build(BuildContext context) {
     final filas = <(String, String?)>[
       ('Tipo de documento', huesped.tipoDocumento),
-      ('Numero de documento', huesped.numeroDocumento),
+      ('Número de documento', huesped.numeroDocumento),
       ('Nombres', huesped.nombres),
       ('Apellidos', huesped.apellidos),
       ('Correo', huesped.email),
-      ('Telefono', huesped.telefono),
+      ('Teléfono', huesped.telefono),
       ('Nacionalidad', huesped.nacionalidad),
       if (huesped.fechaNacimiento != null)
         ('Fecha de nacimiento', formatearFecha(huesped.fechaNacimiento!)),
-      ('Direccion', huesped.direccion),
+      ('Dirección', huesped.direccion),
       ('Observaciones', huesped.observaciones),
     ];
     return AlertDialog(
@@ -530,7 +531,7 @@ class _DialogoHuespedState extends State<_DialogoHuesped> {
   Widget build(BuildContext context) {
     final tiposDocumento = widget.catalogos.valores('tipos_documento');
     return AlertDialog(
-      title: Text(_esNuevo ? 'Nuevo huesped' : 'Editar huesped'),
+      title: Text(_esNuevo ? 'Nuevo huésped' : 'Editar huésped'),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -557,11 +558,11 @@ class _DialogoHuespedState extends State<_DialogoHuesped> {
               TextFormField(
                 controller: _numeroDocumento,
                 decoration: const InputDecoration(
-                  labelText: 'Numero de documento',
+                  labelText: 'Número de documento',
                 ),
                 validator: (valor) => _patronDocumento.hasMatch(valor ?? '')
                     ? null
-                    : 'De 4 a 20 caracteres alfanumericos',
+                    : 'De 4 a 20 caracteres alfanuméricos',
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -589,14 +590,14 @@ class _DialogoHuespedState extends State<_DialogoHuesped> {
                 validator: (valor) {
                   final texto = (valor ?? '').trim();
                   if (texto.isEmpty || texto.contains('@')) return null;
-                  return 'Ingresa un correo valido';
+                  return 'Ingresa un correo válido';
                 },
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _telefono,
                 decoration: const InputDecoration(
-                  labelText: 'Telefono (opcional)',
+                  labelText: 'Teléfono (opcional)',
                 ),
                 keyboardType: TextInputType.phone,
                 validator: (valor) {
@@ -604,7 +605,7 @@ class _DialogoHuespedState extends State<_DialogoHuesped> {
                   if (texto.isEmpty || _patronTelefono.hasMatch(texto)) {
                     return null;
                   }
-                  return 'Formato invalido (ej. +573001234567)';
+                  return 'Formato inválido (ej. +573001234567)';
                 },
               ),
               const SizedBox(height: 12),
@@ -636,7 +637,7 @@ class _DialogoHuespedState extends State<_DialogoHuesped> {
               TextFormField(
                 controller: _direccion,
                 decoration: const InputDecoration(
-                  labelText: 'Direccion (opcional)',
+                  labelText: 'Dirección (opcional)',
                 ),
               ),
               const SizedBox(height: 12),

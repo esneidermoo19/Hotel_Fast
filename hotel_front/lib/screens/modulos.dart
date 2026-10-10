@@ -30,7 +30,7 @@ const List<ModuloApp> _todos = <ModuloApp>[
   ),
   ModuloApp(
     id: 'huespedes',
-    etiqueta: 'Huespedes',
+    etiqueta: 'Huéspedes',
     icono: Icons.people_outline,
   ),
   ModuloApp(
@@ -46,7 +46,7 @@ const List<ModuloApp> _todos = <ModuloApp>[
   ),
   ModuloApp(
     id: 'auditoria',
-    etiqueta: 'Auditoria',
+    etiqueta: 'Auditoría',
     icono: Icons.history_outlined,
     soloAdmin: true,
   ),

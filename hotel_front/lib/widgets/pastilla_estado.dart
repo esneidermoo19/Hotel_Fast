@@ -16,19 +16,25 @@ class PastillaEstado extends StatelessWidget {
 
   (Color fondo, Color texto) get _paleta {
     return switch (estado) {
+      // Verde esmeralda suave.
       'DISPONIBLE' ||
       'CHECK_IN' ||
-      'ACTIVO' => (const Color(0xFFDCFCE7), const Color(0xFF166534)),
-      'PENDIENTE' ||
-      'SUCIA' => (const Color(0xFFFEF3C7), const Color(0xFF92400E)),
-      'CONFIRMADA' ||
-      'OCUPADA' => (const Color(0xFFDBEAFE), const Color(0xFF1E40AF)),
-      'CHECK_OUT' => (const Color(0xFFCCFBF1), const Color(0xFF115E59)),
-      'CANCELADA' => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-      'NO_SHOW' => (const Color(0xFFFFEDD5), const Color(0xFFC2410C)),
+      'ACTIVO' ||
+      'LIMPIA' => (const Color(0xFFECFDF5), const Color(0xFF047857)),
+      // Rojo borgona suave.
+      'OCUPADA' ||
+      'CANCELADA' => (const Color(0xFFFEF2F2), const Color(0xFFB91C1C)),
+      // Ambar calido.
       'MANTENIMIENTO' ||
-      'INACTIVO' => (const Color(0xFFE2E8F0), const Color(0xFF475569)),
-      _ => (const Color(0xFFE2E8F0), const Color(0xFF334155)),
+      'INACTIVO' ||
+      'SUCIA' ||
+      'PENDIENTE' ||
+      'NO_SHOW' => (const Color(0xFFFFFBEB), const Color(0xFFB45309)),
+      // Azul indigo suave (confirmada).
+      'CONFIRMADA' => (const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
+      // Teal suave (check-out).
+      'CHECK_OUT' => (const Color(0xFFF0FDFA), const Color(0xFF0F766E)),
+      _ => (const Color(0xFFF1F5F9), const Color(0xFF475569)),
     };
   }
 

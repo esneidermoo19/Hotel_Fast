@@ -92,7 +92,7 @@ class _ShellScreenState extends State<ShellScreen> {
               child: Center(child: Text('${usuario.nombre} (${usuario.role})')),
             ),
           IconButton(
-            tooltip: 'Cerrar sesion',
+            tooltip: 'Cerrar sesión',
             icon: const Icon(Icons.logout),
             onPressed: () => _confirmarCierre(context),
           ),
@@ -141,8 +141,8 @@ class _ShellScreenState extends State<ShellScreen> {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cerrar sesion'),
-        content: const Text('Se cerrara tu sesion actual. ¿Deseas continuar?'),
+        title: const Text('Cerrar sesión'),
+        content: const Text('Se cerrará tu sesión actual. ¿Deseas continuar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -150,7 +150,7 @@ class _ShellScreenState extends State<ShellScreen> {
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cerrar sesion'),
+            child: const Text('Cerrar sesión'),
           ),
         ],
       ),
@@ -204,7 +204,7 @@ class _MenuDrawer extends StatelessWidget {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),
-              title: const Text('Cerrar sesion'),
+              title: const Text('Cerrar sesión'),
               onTap: alCerrarSesion,
             ),
           ],

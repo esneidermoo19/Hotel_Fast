@@ -22,7 +22,7 @@ class BarraPaginacion extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              tooltip: 'Pagina anterior',
+              tooltip: 'Página anterior',
               icon: const Icon(Icons.chevron_left),
               onPressed: alAnterior,
             ),
@@ -31,7 +31,7 @@ class BarraPaginacion extends StatelessWidget {
               child: Text(etiqueta),
             ),
             IconButton(
-              tooltip: 'Pagina siguiente',
+              tooltip: 'Página siguiente',
               icon: const Icon(Icons.chevron_right),
               onPressed: alSiguiente,
             ),

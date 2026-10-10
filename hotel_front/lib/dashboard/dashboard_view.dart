@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/network/api_exception.dart';
 import '../widgets/aviso_error.dart';
+import '../widgets/esqueleto.dart';
 import 'dashboard_service.dart';
 import 'models/dashboard_resumen.dart';
 
@@ -34,7 +35,7 @@ class _DashboardViewState extends State<DashboardView> {
       future: _futuro,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const ListaEsqueleto(filas: 4);
         }
         if (snapshot.hasError) {
           final err = snapshot.error;
@@ -70,12 +71,12 @@ class _Indicadores extends StatelessWidget {
         icono: Icons.login_outlined,
       ),
       _TarjetaIndicador(
-        etiqueta: 'Huespedes alojados',
+        etiqueta: 'Huéspedes alojados',
         valor: resumen.huespedesAlojados,
         icono: Icons.people_outline,
       ),
       _TarjetaIndicador(
-        etiqueta: 'Check-outs del dia',
+        etiqueta: 'Check-outs del día',
         valor: resumen.checkOutsDelDia,
         icono: Icons.logout_outlined,
       ),

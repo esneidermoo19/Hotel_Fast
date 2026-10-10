@@ -135,7 +135,7 @@ void main() {
 
     expect(find.text('RES-001'), findsOneWidget);
     expect(find.text('Ana Gomez'), findsOneWidget);
-    expect(find.textContaining('Pagina 1 de 1'), findsOneWidget);
+    expect(find.textContaining('Página 1 de 1'), findsOneWidget);
   });
 
   testWidgets('el filtro de estado re-consulta', (tester) async {

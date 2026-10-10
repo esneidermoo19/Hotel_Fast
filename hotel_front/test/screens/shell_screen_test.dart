@@ -32,7 +32,7 @@ void main() {
     await abrirShell(tester, 'ADMIN');
 
     expect(find.text('Usuarios'), findsOneWidget);
-    expect(find.text('Auditoria'), findsOneWidget);
+    expect(find.text('Auditoría'), findsOneWidget);
     expect(find.text('Habitaciones'), findsOneWidget);
     expect(find.byIcon(Icons.logout), findsOneWidget);
   });
@@ -42,6 +42,6 @@ void main() {
 
     expect(find.text('Habitaciones'), findsOneWidget);
     expect(find.text('Usuarios'), findsNothing);
-    expect(find.text('Auditoria'), findsNothing);
+    expect(find.text('Auditoría'), findsNothing);
   });
 }

@@ -27,11 +27,11 @@ void main() {
   testWidgets('muestra errores de validacion al enviar vacio', (tester) async {
     await abrirLogin(tester, (request) async => http.Response('{}', 200));
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesion'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar Sesión'));
     await tester.pump();
 
     expect(find.text('Ingresa tu usuario o correo'), findsOneWidget);
-    expect(find.text('Ingresa tu contrasena'), findsOneWidget);
+    expect(find.text('Ingresa tu contraseña'), findsOneWidget);
   });
 
   testWidgets('muestra error de credenciales en 401', (tester) async {
@@ -48,10 +48,10 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).first, 'usuario');
     await tester.enterText(find.byType(TextFormField).last, 'clave');
-    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesion'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar Sesión'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Usuario o contrasena incorrectos.'), findsOneWidget);
+    expect(find.text('Usuario o contraseña incorrectos.'), findsOneWidget);
   });
 
   testWidgets('login exitoso muestra el shell', (tester) async {
@@ -62,7 +62,7 @@ void main() {
 
     await tester.enterText(find.byType(TextFormField).first, 'usuario');
     await tester.enterText(find.byType(TextFormField).last, 'clave');
-    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar sesion'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Iniciar Sesión'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.logout), findsOneWidget);

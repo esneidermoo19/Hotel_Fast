@@ -16,6 +16,7 @@ import '../shared/utils/formato.dart';
 import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
 import '../widgets/pastilla_estado.dart';
 import '../widgets/tarjeta_hover.dart';
@@ -186,7 +187,7 @@ class _ReservasViewState extends State<ReservasView> {
             future: _futuro,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ListaEsqueleto();
               }
               if (snapshot.hasError) {
                 final err = snapshot.error;
@@ -222,7 +223,7 @@ class _ReservasViewState extends State<ReservasView> {
                     ),
                   ),
                   BarraPaginacion(
-                    etiqueta: 'Pagina $_pagina de $totalPaginas',
+                    etiqueta: 'Página $_pagina de $totalPaginas',
                     alAnterior: _pagina > 1
                         ? () => _aplicar(pagina: _pagina - 1)
                         : null,
@@ -382,7 +383,7 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
   Future<void> _noShow() async {
     final ok = await _preguntar(
       'Marcar No-show',
-      'Se marcara la reserva como no asistida.',
+      'Se marcará la reserva como no asistida.',
     );
     if (ok == true) {
       await _ejecutar(() => widget.service.marcarNoShow(_reserva.id));
@@ -392,7 +393,7 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
   Future<void> _checkIn() async {
     final ok = await _preguntar(
       'Registrar check-in',
-      'Se confirmara el ingreso del huesped.',
+      'Se confirmará el ingreso del huésped.',
     );
     if (ok == true) await _ejecutar(() => widget.service.checkIn(_reserva.id));
   }
@@ -406,7 +407,7 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
   Future<void> _checkOut() async {
     final ok = await _preguntar(
       'Registrar check-out',
-      'Se finalizara la estancia del huesped.',
+      'Se finalizará la estancia del huésped.',
     );
     if (ok != true) return;
     setState(() => _enviando = true);
@@ -467,7 +468,7 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
           maxLines: 2,
           autofocus: true,
           decoration: const InputDecoration(
-            labelText: 'Motivo (minimo 3 caracteres)',
+            labelText: 'Motivo (mínimo 3 caracteres)',
           ),
         ),
         actions: [
@@ -514,19 +515,19 @@ class _DialogoDetalleReservaState extends State<_DialogoDetalleReserva> {
 
   List<(String, String)> get _datos {
     return [
-      ('Codigo', _reserva.codigo),
-      ('Huesped', _reserva.huesped.nombreCompleto),
-      ('Habitacion', '#${_reserva.habitacion.numero}'),
+      ('Código', _reserva.codigo),
+      ('Huésped', _reserva.huesped.nombreCompleto),
+      ('Habitación', '#${_reserva.habitacion.numero}'),
       ('Check-in', formatearFecha(_reserva.fechaEntrada)),
       ('Check-out', formatearFecha(_reserva.fechaSalida)),
-      ('Huespedes', '${_reserva.numeroHuespedes}'),
+      ('Huéspedes', '${_reserva.numeroHuespedes}'),
       ('Estado', humanizar(_reserva.estado)),
       ('Precio noche', formatearMonto(_reserva.precioNocheAplicado)),
       ('Total estimado', formatearMonto(_reserva.totalEstimado)),
       if (_reserva.observaciones != null)
         ('Observaciones', _reserva.observaciones!),
       if (_reserva.motivoCancelacion != null)
-        ('Motivo cancelacion', _reserva.motivoCancelacion!),
+        ('Motivo cancelación', _reserva.motivoCancelacion!),
     ];
   }
 
@@ -825,12 +826,12 @@ class _DialogoNuevaReservaState extends State<_DialogoNuevaReserva> {
             TextFormField(
               controller: _numeroHuespedes,
               decoration: const InputDecoration(
-                labelText: 'Numero de huespedes',
+                labelText: 'Número de huéspedes',
               ),
               keyboardType: TextInputType.number,
             ),
             const Divider(height: 24),
-            Text('Huesped', style: Theme.of(context).textTheme.titleSmall),
+            Text('Huésped', style: Theme.of(context).textTheme.titleSmall),
             Row(
               children: [
                 Expanded(
@@ -876,7 +877,7 @@ class _DialogoNuevaReservaState extends State<_DialogoNuevaReserva> {
                 style: Theme.of(context).textTheme.labelMedium,
               ),
             const Divider(height: 24),
-            Text('Habitacion', style: Theme.of(context).textTheme.titleSmall),
+            Text('Habitación', style: Theme.of(context).textTheme.titleSmall),
             FilledButton.tonalIcon(
               onPressed: (_entrada != null && _salida != null)
                   ? _consultarDisponibilidad
@@ -1287,9 +1288,9 @@ class _DialogoRegistrarConsumoState extends State<_DialogoRegistrarConsumo> {
           children: [
             TextFormField(
               controller: _descripcion,
-              decoration: const InputDecoration(labelText: 'Descripcion'),
+              decoration: const InputDecoration(labelText: 'Descripción'),
               validator: (valor) => (valor == null || valor.trim().isEmpty)
-                  ? 'Ingresa la descripcion'
+                  ? 'Ingresa la descripción'
                   : null,
             ),
             const SizedBox(height: 12),
@@ -1300,7 +1301,7 @@ class _DialogoRegistrarConsumoState extends State<_DialogoRegistrarConsumo> {
               validator: (valor) {
                 final numero = int.tryParse(valor ?? '');
                 return (numero == null || numero < 1)
-                    ? 'Cantidad invalida'
+                    ? 'Cantidad inválida'
                     : null;
               },
             ),
@@ -1316,7 +1317,7 @@ class _DialogoRegistrarConsumoState extends State<_DialogoRegistrarConsumo> {
               validator: (valor) {
                 final numero = double.tryParse(valor ?? '');
                 return (numero == null || numero <= 0)
-                    ? 'Precio invalido'
+                    ? 'Precio inválido'
                     : null;
               },
             ),
@@ -1440,14 +1441,14 @@ class _DialogoRegistrarPagoState extends State<_DialogoRegistrarPago> {
               validator: (valor) {
                 final numero = double.tryParse(valor ?? '');
                 return (numero == null || numero <= 0)
-                    ? 'Monto invalido'
+                    ? 'Monto inválido'
                     : null;
               },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _metodo,
-              decoration: const InputDecoration(labelText: 'Metodo de pago'),
+              decoration: const InputDecoration(labelText: 'Método de pago'),
               items: [
                 for (final metodo in metodos)
                   DropdownMenuItem(value: metodo, child: Text(metodo)),

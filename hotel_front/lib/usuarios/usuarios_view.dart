@@ -7,6 +7,7 @@ import '../shared/models/pagina.dart';
 import '../shared/utils/formato.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
 import '../widgets/pastilla_estado.dart';
 import '../widgets/tarjeta_hover.dart';
@@ -112,7 +113,7 @@ class _UsuariosViewState extends State<UsuariosView> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar usuario'),
-        content: Text('Se eliminaran los datos de ${usuario.username}.'),
+        content: Text('Se eliminarán los datos de ${usuario.username}.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -208,7 +209,7 @@ class _UsuariosViewState extends State<UsuariosView> {
             future: _futuro,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ListaEsqueleto();
               }
               if (snapshot.hasError) {
                 final err = snapshot.error;
@@ -399,9 +400,9 @@ class _DialogoNuevoUsuarioState extends State<_DialogoNuevoUsuario> {
 
   String? _validarContrasena(String? valor) {
     final texto = valor ?? '';
-    if (texto.length < 8) return 'Minimo 8 caracteres';
+    if (texto.length < 8) return 'Mínimo 8 caracteres';
     if (!RegExp(r'[A-Za-z]').hasMatch(texto)) return 'Debe incluir una letra';
-    if (!RegExp(r'\d').hasMatch(texto)) return 'Debe incluir un numero';
+    if (!RegExp(r'\d').hasMatch(texto)) return 'Debe incluir un número';
     return null;
   }
 
@@ -422,7 +423,7 @@ class _DialogoNuevoUsuarioState extends State<_DialogoNuevoUsuario> {
                 decoration: const InputDecoration(labelText: 'Username'),
                 validator: (valor) => _patronUsuario.hasMatch(valor ?? '')
                     ? null
-                    : 'Letras, numeros, . _ - (3-64)',
+                    : 'Letras, números, . _ - (3-64)',
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -432,7 +433,7 @@ class _DialogoNuevoUsuarioState extends State<_DialogoNuevoUsuario> {
                 validator: (valor) =>
                     (valor == null || valor.trim().contains('@'))
                     ? null
-                    : 'Correo invalido',
+                    : 'Correo inválido',
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -447,8 +448,8 @@ class _DialogoNuevoUsuarioState extends State<_DialogoNuevoUsuario> {
                 controller: _password,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: 'Contrasena',
-                  helperText: 'Minimo 8 caracteres, letra y numero',
+                  labelText: 'Contraseña',
+                  helperText: 'Mínimo 8 caracteres, letra y número',
                 ),
                 validator: _validarContrasena,
               ),

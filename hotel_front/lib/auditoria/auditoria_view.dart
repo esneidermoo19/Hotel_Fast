@@ -5,6 +5,7 @@ import '../shared/models/pagina.dart';
 import '../shared/utils/fecha_hora.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
+import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
 import '../widgets/tarjeta_hover.dart';
 import 'auditoria_service.dart';
@@ -61,7 +62,7 @@ class _AuditoriaViewState extends State<AuditoriaView> {
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
           child: Row(
             children: [
-              Text('Auditoria', style: Theme.of(context).textTheme.titleLarge),
+              Text('Auditoría', style: Theme.of(context).textTheme.titleLarge),
               const Spacer(),
               IconButton(
                 tooltip: 'Actualizar',
@@ -76,7 +77,7 @@ class _AuditoriaViewState extends State<AuditoriaView> {
             future: _futuro,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ListaEsqueleto();
               }
               if (snapshot.hasError) {
                 final err = snapshot.error;

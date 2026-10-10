@@ -116,11 +116,11 @@ void main() {
       _envoltura(servicio, await _catalogosCargados(), esAdmin: true),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Nueva habitacion'));
+    await tester.tap(find.text('Nueva habitación'));
     await tester.pumpAndSettle();
 
     expect(find.text('Guardar'), findsOneWidget);
-    expect(find.text('Numero'), findsOneWidget);
+    expect(find.text('Número'), findsOneWidget);
   });
 
   testWidgets('recepcion no ve el boton de nueva habitacion', (tester) async {
@@ -131,6 +131,6 @@ void main() {
     await tester.pumpWidget(_envoltura(servicio, await _catalogosCargados()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nueva habitacion'), findsNothing);
+    expect(find.text('Nueva habitación'), findsNothing);
   });
 }

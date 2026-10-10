@@ -87,7 +87,7 @@ void main() {
 
     expect(find.text('Ana Gomez'), findsOneWidget);
     expect(find.text('Luis Rojas'), findsOneWidget);
-    expect(find.textContaining('Pagina 1 de 1'), findsOneWidget);
+    expect(find.textContaining('Página 1 de 1'), findsOneWidget);
   });
 
   testWidgets('la busqueda reconsulta con q', (tester) async {
@@ -137,7 +137,7 @@ void main() {
       _envoltura(servicio, await _catalogosCargados(), esAdmin: true),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Nuevo huesped'));
+    await tester.tap(find.text('Nuevo huésped'));
     await tester.pumpAndSettle();
 
     expect(find.text('Guardar'), findsOneWidget);
@@ -152,6 +152,6 @@ void main() {
     await tester.pumpWidget(_envoltura(servicio, await _catalogosCargados()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Nuevo huesped'), findsNothing);
+    expect(find.text('Nuevo huésped'), findsNothing);
   });
 }
