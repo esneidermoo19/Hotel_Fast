@@ -31,15 +31,27 @@ def anular_payload(motivo: str = "Pago duplicado") -> dict[str, str]:
     return {"motivoAnulacion": motivo}
 
 
+_CONTADOR = 0
+
+
+def _siguiente() -> int:
+    global _CONTADOR
+    _CONTADOR += 1
+    return _CONTADOR
+
+
 def _setup_reserva_con_estado(db, estado: EstadoReserva, sufijo: str = ""):
+    # Secuencia determinista y unica (evita colisiones UNIQUE; hash() es
+    # aleatorio por proceso y hacia fallar este setup de forma intermitente).
+    secuencia = _siguiente()
     usuario = crear_usuario(
         db,
-        username=f"user_{estado.value}{sufijo}",
-        email=f"user_{estado.value}{sufijo}@example.com",
+        username=f"user_{estado.value}{sufijo}_{secuencia}",
+        email=f"user_{estado.value}{sufijo}_{secuencia}@example.com",
     )
-    habitacion = crear_habitacion(db, numero=800 + hash(f"{estado.value}{sufijo}") % 100)
+    habitacion = crear_habitacion(db, numero=800 + secuencia)
     huesped = crear_huesped(
-        db, numero_documento=f"88888888{hash(f'{estado.value}{sufijo}') % 100:02d}"
+        db, numero_documento=f"88888888{secuencia:02d}"
     )
     reserva = crear_reserva(
         db,
@@ -47,7 +59,7 @@ def _setup_reserva_con_estado(db, estado: EstadoReserva, sufijo: str = ""):
         habitacion=habitacion,
         usuario=usuario,
         estado=estado,
-        codigo=f"RES-2026-{hash(f'{estado.value}{sufijo}') % 1000000:06d}",
+        codigo=f"RES-2026-{secuencia:06d}",
     )
     return usuario, habitacion, huesped, reserva
 
