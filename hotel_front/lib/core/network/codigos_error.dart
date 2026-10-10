@@ -15,6 +15,11 @@ abstract final class CodigosError {
   static const String noDisponible = 'NO_DISPONIBLE';
   static const String baseDatos = 'BASE_DATOS';
 
+  /// Codigos del modulo de imagenes de habitaciones.
+  static const String formatoImagenInvalido = 'FORMATO_IMAGEN_INVALIDO';
+  static const String imagenMuyGrande = 'IMAGEN_MUY_GRANDE';
+  static const String maximoImagenes = 'MAXIMO_IMAGENES';
+
   /// Codigos generados por el cliente (no por el backend).
   static const String errorInterno = 'ERROR_INTERNO';
   static const String errorDesconocido = 'ERROR_DESCONOCIDO';

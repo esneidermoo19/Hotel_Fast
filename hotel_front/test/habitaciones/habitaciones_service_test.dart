@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hotel_front/core/network/api_exception.dart';
+import 'package:hotel_front/core/network/codigos_error.dart';
 import 'package:hotel_front/habitaciones/habitaciones_service.dart';
 import 'package:hotel_front/habitaciones/models/habitacion.dart';
 import 'package:http/http.dart' as http;
@@ -136,6 +137,163 @@ void main() {
             .having((e) => e.statusCode, 'statusCode', 409)
             .having((e) => e.codigo, 'codigo', 'CONFLICTO'),
       ),
+    );
+  });
+
+  test('subirImagen envia multipart con el archivo', () async {
+    http.Request? capturado;
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async {
+        capturado = request;
+        return http.Response(
+          jsonEncode({
+            'id': 10,
+            'url': '/media/abc.png',
+            'orden': 1,
+            'esPrincipal': true,
+          }),
+          201,
+        );
+      }),
+    );
+
+    final imagen = await servicio.subirImagen(
+      7,
+      utf8.encode('contenido-de-imagen'),
+      'foto.png',
+    );
+
+    expect(capturado!.method, 'POST');
+    expect(capturado!.url.path, '/api/habitaciones/7/imagenes');
+    expect(capturado!.headers['content-type'], contains('multipart/form-data'));
+    expect(latin1.decode(capturado!.bodyBytes), contains('foto.png'));
+    expect(imagen.id, 10);
+    expect(imagen.esPrincipal, isTrue);
+    expect(imagen.url, '/media/abc.png');
+  });
+
+  test('subirImagen rechaza extension no permitida sin tocar la red', () async {
+    var llamoALaRed = false;
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async {
+        llamoALaRed = true;
+        return http.Response('', 200);
+      }),
+    );
+
+    await expectLater(
+      servicio.subirImagen(1, utf8.encode('x'), 'foto.gif'),
+      throwsA(
+        isA<ApiException>()
+            .having(
+              (e) => e.codigo,
+              'codigo',
+              CodigosError.formatoImagenInvalido,
+            )
+            .having((e) => e.statusCode, 'statusCode', 422),
+      ),
+    );
+    expect(llamoALaRed, isFalse);
+  });
+
+  test('subirImagen rechaza un archivo mayor a 5 MB', () async {
+    var llamoALaRed = false;
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async {
+        llamoALaRed = true;
+        return http.Response('', 200);
+      }),
+    );
+
+    final grande = List<int>.filled(5 * 1024 * 1024 + 1, 0);
+
+    await expectLater(
+      servicio.subirImagen(1, grande, 'foto.png'),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.codigo,
+          'codigo',
+          CodigosError.imagenMuyGrande,
+        ),
+      ),
+    );
+    expect(llamoALaRed, isFalse);
+  });
+
+  test('subirImagen propaga el 409 MAXIMO_IMAGENES del backend', () async {
+    final servicio = HabitacionesService(
+      crearApiSimulada(
+        (request) async => http.Response(
+          jsonEncode({
+            'detail': 'Maximo de imagenes',
+            'code': 'MAXIMO_IMAGENES',
+          }),
+          409,
+        ),
+      ),
+    );
+
+    await expectLater(
+      servicio.subirImagen(1, utf8.encode('x'), 'foto.png'),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.codigo, 'codigo', CodigosError.maximoImagenes)
+            .having((e) => e.statusCode, 'statusCode', 409),
+      ),
+    );
+  });
+
+  test('eliminarImagen usa DELETE', () async {
+    http.Request? capturado;
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async {
+        capturado = request;
+        return http.Response('', 204);
+      }),
+    );
+
+    await servicio.eliminarImagen(7, 3);
+
+    expect(capturado!.method, 'DELETE');
+    expect(capturado!.url.path, '/api/habitaciones/7/imagenes/3');
+  });
+
+  test('marcarPrincipal usa PATCH', () async {
+    http.Request? capturado;
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async {
+        capturado = request;
+        return http.Response(
+          jsonEncode({
+            'id': 3,
+            'url': '/media/x.png',
+            'orden': 1,
+            'esPrincipal': true,
+          }),
+          200,
+        );
+      }),
+    );
+
+    final imagen = await servicio.marcarPrincipal(7, 3);
+
+    expect(capturado!.method, 'PATCH');
+    expect(capturado!.url.path, '/api/habitaciones/7/imagenes/3/principal');
+    expect(imagen.esPrincipal, isTrue);
+  });
+
+  test('resolverUrlMedia resuelve relativas y respeta absolutas', () {
+    final servicio = HabitacionesService(
+      crearApiSimulada((request) async => http.Response('', 200)),
+    );
+
+    expect(
+      servicio.resolverUrlMedia('/media/abc.png'),
+      'http://localhost:8000/media/abc.png',
+    );
+    expect(
+      servicio.resolverUrlMedia('https://cdn.example.com/a.png'),
+      'https://cdn.example.com/a.png',
     );
   });
 }

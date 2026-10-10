@@ -76,6 +76,30 @@ class ApiClient {
     );
   }
 
+  /// Envia un archivo por `multipart/form-data` (sin fijar `Content-Type` a
+  /// mano: [http.MultipartRequest] lo arma con su propio boundary).
+  ///
+  /// [timeout] permite un margen mayor que el general para subidas grandes.
+  Future<Object?> postMultipart(
+    String path, {
+    required String campo,
+    required String nombreArchivo,
+    required List<int> bytes,
+    Duration? timeout,
+    bool renovarEn401 = true,
+  }) {
+    return _conRenovacion(
+      () => _ejecutarMultipart(
+        path,
+        campo: campo,
+        nombreArchivo: nombreArchivo,
+        bytes: bytes,
+        timeout: timeout,
+      ),
+      renovarEn401,
+    );
+  }
+
   Future<void> delete(
     String path, {
     Map<String, dynamic>? query,
@@ -133,6 +157,42 @@ class ApiClient {
       return _procesar(response);
     } on TimeoutException {
       throw ErrorMapper.deTiempoDeEspera(config.timeout);
+    } on http.ClientException catch (error) {
+      throw ErrorMapper.deRed(error.message);
+    } on ApiException {
+      rethrow;
+    } catch (error) {
+      throw ErrorMapper.deRed(error.toString());
+    }
+  }
+
+  Future<Object?> _ejecutarMultipart(
+    String path, {
+    required String campo,
+    required String nombreArchivo,
+    required List<int> bytes,
+    Duration? timeout,
+  }) async {
+    final uri = config.resolve(path);
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Accept'] = 'application/json';
+
+    final token = sesion?.accessToken;
+    if (token != null && token.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+
+    request.files.add(
+      http.MultipartFile.fromBytes(campo, bytes, filename: nombreArchivo),
+    );
+
+    final tiempo = timeout ?? config.timeout;
+    try {
+      final streamed = await _cliente.send(request).timeout(tiempo);
+      final response = await http.Response.fromStream(streamed);
+      return _procesar(response);
+    } on TimeoutException {
+      throw ErrorMapper.deTiempoDeEspera(tiempo);
     } on http.ClientException catch (error) {
       throw ErrorMapper.deRed(error.message);
     } on ApiException {

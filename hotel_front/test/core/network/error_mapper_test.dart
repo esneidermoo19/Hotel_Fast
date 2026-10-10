@@ -83,6 +83,35 @@ void main() {
       expect(error.codigo, CodigosError.demasiadasSolicitudes);
     });
 
+    test('422 conserva FORMATO_IMAGEN_INVALIDO', () {
+      final error = ErrorMapper.desdeRespuesta(422, {
+        'detail': 'El archivo debe ser una imagen',
+        'code': 'FORMATO_IMAGEN_INVALIDO',
+      });
+
+      expect(error.codigo, CodigosError.formatoImagenInvalido);
+      expect(error.statusCode, 422);
+    });
+
+    test('422 conserva IMAGEN_MUY_GRANDE', () {
+      final error = ErrorMapper.desdeRespuesta(422, {
+        'detail': 'La imagen supera 5 MB',
+        'code': 'IMAGEN_MUY_GRANDE',
+      });
+
+      expect(error.codigo, CodigosError.imagenMuyGrande);
+    });
+
+    test('409 conserva MAXIMO_IMAGENES', () {
+      final error = ErrorMapper.desdeRespuesta(409, {
+        'detail': 'Maximo de imagenes alcanzado',
+        'code': 'MAXIMO_IMAGENES',
+      });
+
+      expect(error.codigo, CodigosError.maximoImagenes);
+      expect(error.statusCode, 409);
+    });
+
     test('cuerpo no-JSON usa codigo y mensaje por defecto del HTTP', () {
       final error = ErrorMapper.desdeRespuesta(500, '<html>error</html>');
 
