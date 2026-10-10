@@ -69,6 +69,9 @@ Codigos y estados reales (ver `app/core/errors.py`):
 | `NO_ENCONTRADO` | 404 | Recurso inexistente |
 | `CONFLICTO` | 409 | Conflicto con el estado actual |
 | `REGLA_NEGOCIO` | 409 | Regla de negocio violada (subclase de conflicto) |
+| `FORMATO_IMAGEN_INVALIDO` | 422 | Imagen con formato no permitido (solo JPEG, PNG o WEBP) |
+| `IMAGEN_MUY_GRANDE` | 422 | Imagen supera el tamano maximo (5 MB) |
+| `MAXIMO_IMAGENES` | 409 | La habitacion alcanzo el maximo de imagenes (10) |
 | `DEMASIADAS_SOLICITUDES` | 429 | Rate limit (incluye `Retry-After: 60`) |
 | `NO_DISPONIBLE` | 503 | `GET /api/health` sin BD |
 | `BASE_DATOS` | 503 | Error de base de datos |
@@ -183,14 +186,21 @@ Unicos roles existentes (`RolUsuario`): `ADMIN` y `RECEPCION`.
 | PUT | `/api/habitaciones/{habitacionId}` | ADMIN | Reemplazo con `HabitacionUpdate` (= Create) |
 | PATCH | `/api/habitaciones/{habitacionId}/estado` | Bearer | Cuerpo `{ estado }` |
 | PATCH | `/api/habitaciones/{habitacionId}/limpieza` | Bearer | Cuerpo `{ limpieza }` (permitido aunque `OCUPADA`) |
+| POST | `/api/habitaciones/{habitacionId}/imagenes` | ADMIN | `multipart/form-data`, campo `archivo` (JPEG/PNG/WEBP, max 5 MB). 201. Primera imagen queda principal |
+| DELETE | `/api/habitaciones/{habitacionId}/imagenes/{imagenId}` | ADMIN | 204. Si era principal, promueve otra |
+| PATCH | `/api/habitaciones/{habitacionId}/imagenes/{imagenId}/principal` | ADMIN | Marca la imagen como principal |
 | DELETE | `/api/habitaciones/{habitacionId}` | ADMIN | 204. 409 si tiene reservas futuras |
 
 **HabitacionCreate/Update**: `numero` (> 0), `tipo`, `capacidad` (>= 1),
 `precioPorNoche` (> 0, 2 decimales), `estado` (default `DISPONIBLE`),
 `descripcion` (opcional).
 
-**HabitacionRead**: lo anterior + `id`, `limpieza`, `createdAt`, `updatedAt`.
-`precioPorNoche` en JSON es numero.
+**HabitacionRead**: lo anterior + `id`, `limpieza`, `createdAt`, `updatedAt`,
+`imagenes` (arreglo de `HabitacionImagenRead`) e `imagenPrincipalUrl`
+(`null` si no hay principal). `precioPorNoche` en JSON es numero.
+
+**HabitacionImagenRead**: `id`, `orden`, `esPrincipal`, `url` (relativa a la API,
+`/media/{ruta}`).
 
 ### 6.3 Huespedes (`/api/huespedes`) - paginado
 

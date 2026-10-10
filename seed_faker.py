@@ -7,14 +7,18 @@ Es idempotente: si ya existen habitaciones, no inserta nada.
 """
 import os
 import random
+import shutil
 import sys
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
+from uuid import uuid4
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from sqlalchemy import func, select
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.core.tiempo import hoy_bogota
@@ -24,6 +28,7 @@ from app.models import (
     EstadoLimpieza,
     EstadoReserva,
     Habitacion,
+    HabitacionImagen,
     Huesped,
     MetodoPago,
     Pago,
@@ -39,6 +44,11 @@ NOMBRES = ["Ana", "Luis", "Maria", "Carlos", "Laura", "Jorge", "Sofia", "Andres"
 APELLIDOS = ["Gomez", "Rojas", "Perez", "Diaz", "Lopez", "Castro", "Vargas", "Mora"]
 NACIONALIDADES = ["Colombia", "Mexico", "Espana", "Argentina", "Chile"]
 DIRECCIONES = ["Calle 1 #10-20", "Av. 5 #30-40", "Carrera 7 #15-25", "Diagonal 12 #5-6"]
+
+# Carpeta con imagenes de ejemplo, una por tipo de habitacion. Si no existe
+# (o no hay archivos), el seed sigue funcionando sin imagenes.
+SEED_IMAGENES_DIR = Path(__file__).parent / "app" / "static" / "seed"
+EXTENSIONES_IMAGEN = ("jpg", "jpeg", "png", "webp")
 
 # (numero, tipo, capacidad, precio por noche)
 HABITACIONES = [
@@ -67,6 +77,32 @@ def _huesped(nombres, apellidos, numero_documento, tipo) -> Huesped:
         ),
         direccion=random.choice(DIRECCIONES),
     )
+
+
+def _asignar_imagenes(db, habitaciones) -> None:
+    """Copia imagenes de ejemplo a MEDIA_DIR y las asocia a cada habitacion.
+
+    Busca, por tipo de habitacion, un archivo `{tipo}.{ext}` en app/static/seed.
+    Si no existe, deja la habitacion sin imagenes.
+    """
+    directorio_media = Path(settings.media_dir)
+    directorio_media.mkdir(parents=True, exist_ok=True)
+    for habitacion in habitaciones:
+        tipo = habitacion.tipo.value.lower()
+        for extension in EXTENSIONES_IMAGEN:
+            origen = SEED_IMAGENES_DIR / f"{tipo}.{extension}"
+            if origen.is_file():
+                nombre = f"{uuid4().hex}.{extension}"
+                shutil.copyfile(origen, directorio_media / nombre)
+                db.add(
+                    HabitacionImagen(
+                        habitacion_id=habitacion.id,
+                        ruta=nombre,
+                        orden=1,
+                        es_principal=True,
+                    )
+                )
+                break
 
 
 def generar_datos() -> None:
@@ -106,6 +142,8 @@ def generar_datos() -> None:
             db.add(habitacion)
             habitaciones.append(habitacion)
         db.flush()
+
+        _asignar_imagenes(db, habitaciones)
 
         huespedes = []
         for i, (nombres, apellidos) in enumerate(zip(NOMBRES, APELLIDOS, strict=True)):

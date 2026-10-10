@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, File, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -16,6 +16,7 @@ from app.models import (
 from app.schemas.habitacion import (
     HabitacionCreate,
     HabitacionEstado,
+    HabitacionImagenRead,
     HabitacionLimpieza,
     HabitacionRead,
     HabitacionUpdate,
@@ -220,3 +221,76 @@ def eliminar_habitacion(
     except habitacion_service.HabitacionConReservasFuturasError as error:
         raise ConflictoError(str(error)) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{habitacion_id}/imagenes",
+    response_model=HabitacionImagenRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Subir imagen de habitacion",
+    description=(
+        "Sube una imagen (JPEG, PNG o WEBP, maximo 5 MB) a una habitacion. "
+        "Si es la primera imagen, queda marcada como principal."
+    ),
+    responses={
+        201: {"description": "Imagen subida"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Habitacion no encontrada"},
+        409: {"description": "La habitacion ya alcanzo el maximo de imagenes"},
+        422: {"description": "Formato no permitido o archivo demasiado grande"},
+    },
+)
+def subir_imagen_habitacion(
+    habitacion_id: int,
+    archivo: Annotated[UploadFile, File(description="Archivo de imagen a subir")],
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(solo_administradores)],
+) -> HabitacionImagenRead:
+    return habitacion_service.subir_imagen(db, habitacion_id, archivo, usuario.id)
+
+
+@router.delete(
+    "/{habitacion_id}/imagenes/{imagen_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar imagen de habitacion",
+    description=(
+        "Elimina una imagen de la habitacion y su archivo. Si era la principal, "
+        "promueve otra imagen como principal."
+    ),
+    responses={
+        204: {"description": "Imagen eliminada"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Habitacion o imagen no encontrada"},
+    },
+)
+def eliminar_imagen_habitacion(
+    habitacion_id: int,
+    imagen_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(solo_administradores)],
+) -> Response:
+    habitacion_service.eliminar_imagen(db, habitacion_id, imagen_id, usuario.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/{habitacion_id}/imagenes/{imagen_id}/principal",
+    response_model=HabitacionImagenRead,
+    summary="Marcar imagen principal",
+    description="Marca una imagen de la habitacion como principal.",
+    responses={
+        200: {"description": "Imagen marcada como principal"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Se requiere el rol administrador"},
+        404: {"description": "Habitacion o imagen no encontrada"},
+    },
+)
+def marcar_imagen_principal(
+    habitacion_id: int,
+    imagen_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(solo_administradores)],
+) -> HabitacionImagenRead:
+    return habitacion_service.marcar_imagen_principal(db, habitacion_id, imagen_id)

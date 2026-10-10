@@ -605,6 +605,180 @@
         }
       }
     },
+    "/api/habitaciones/{habitacion_id}/imagenes": {
+      "post": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Subir imagen de habitacion",
+        "description": "Sube una imagen (JPEG, PNG o WEBP, maximo 5 MB) a una habitacion. Si es la primera imagen, queda marcada como principal.",
+        "operationId": "subirImagenHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_subirImagenHabitacion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Imagen subida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionImagenRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Formato no permitido o archivo demasiado grande"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Habitacion no encontrada"
+          },
+          "409": {
+            "description": "La habitacion ya alcanzo el maximo de imagenes"
+          }
+        }
+      }
+    },
+    "/api/habitaciones/{habitacion_id}/imagenes/{imagen_id}": {
+      "delete": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Eliminar imagen de habitacion",
+        "description": "Elimina una imagen de la habitacion y su archivo. Si era la principal, promueve otra imagen como principal.",
+        "operationId": "eliminarImagenHabitacion",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          },
+          {
+            "name": "imagen_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Imagen Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Imagen eliminada"
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Habitacion o imagen no encontrada"
+          }
+        }
+      }
+    },
+    "/api/habitaciones/{habitacion_id}/imagenes/{imagen_id}/principal": {
+      "patch": {
+        "tags": [
+          "habitaciones"
+        ],
+        "summary": "Marcar imagen principal",
+        "description": "Marca una imagen de la habitacion como principal.",
+        "operationId": "marcarImagenPrincipal",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "habitacion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Habitacion Id"
+            }
+          },
+          {
+            "name": "imagen_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Imagen Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Imagen marcada como principal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HabitacionImagenRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Solicitud invalida por datos o parametros incorrectos"
+          },
+          "401": {
+            "description": "Token de acceso invalido o ausente"
+          },
+          "403": {
+            "description": "Se requiere el rol administrador"
+          },
+          "404": {
+            "description": "Habitacion o imagen no encontrada"
+          }
+        }
+      }
+    },
     "/api/huespedes": {
       "get": {
         "tags": [
@@ -3072,6 +3246,21 @@
         ],
         "title": "AuditoriaRead"
       },
+      "Body_subirImagenHabitacion": {
+        "properties": {
+          "archivo": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Archivo",
+            "description": "Archivo de imagen a subir"
+          }
+        },
+        "type": "object",
+        "required": [
+          "archivo"
+        ],
+        "title": "Body_subirImagenHabitacion"
+      },
       "CambiarPasswordRequest": {
         "properties": {
           "passwordActual": {
@@ -3828,6 +4017,35 @@
         ],
         "title": "HabitacionEstado"
       },
+      "HabitacionImagenRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "orden": {
+            "type": "integer",
+            "title": "Orden"
+          },
+          "esPrincipal": {
+            "type": "boolean",
+            "title": "Esprincipal"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "orden",
+          "esPrincipal",
+          "url"
+        ],
+        "title": "HabitacionImagenRead"
+      },
       "HabitacionLimpieza": {
         "properties": {
           "limpieza": {
@@ -3890,6 +4108,26 @@
             "type": "string",
             "format": "date-time",
             "title": "Updatedat"
+          },
+          "imagenes": {
+            "items": {
+              "$ref": "#/components/schemas/HabitacionImagenRead"
+            },
+            "type": "array",
+            "title": "Imagenes",
+            "default": []
+          },
+          "imagenPrincipalUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Imagenprincipalurl",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3901,7 +4139,8 @@
           "id",
           "limpieza",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "imagenPrincipalUrl"
         ],
         "title": "HabitacionRead"
       },

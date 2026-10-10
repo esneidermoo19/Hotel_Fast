@@ -14,6 +14,10 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 WORKDIR /app
 
+# Crea el directorio de medios con dueño appuser para que el volumen nombrado
+# media_data herede ese dueño y las subidas no fallen con PermissionError.
+RUN mkdir -p /app/media && chown appuser:appuser /app/media
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

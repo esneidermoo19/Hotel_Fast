@@ -47,6 +47,10 @@ services:
       SEED_RECEPCION_USERNAME: ${SEED_RECEPCION_USERNAME:-}
       SEED_RECEPCION_NOMBRE: ${SEED_RECEPCION_NOMBRE:-}
       SEED_RECEPCION_PASSWORD: ${SEED_RECEPCION_PASSWORD:-}
+      MEDIA_DIR: ${MEDIA_DIR:-/app/media}
+      MEDIA_URL_PREFIX: ${MEDIA_URL_PREFIX:-/media}
+    volumes:
+      - media_data:${MEDIA_DIR:-/app/media}
     depends_on:
       db:
         condition: service_healthy
@@ -63,3 +67,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

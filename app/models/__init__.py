@@ -13,6 +13,7 @@ from app.models.enums import (
     TipoTurno,
 )
 from app.models.habitacion import Habitacion
+from app.models.habitacion_imagen import HabitacionImagen
 from app.models.horario_empleado import HorarioEmpleado
 from app.models.huesped import Huesped
 from app.models.pago import Pago
@@ -27,6 +28,7 @@ __all__ = [
     "EstadoLimpieza",
     "EstadoReserva",
     "Habitacion",
+    "HabitacionImagen",
     "HorarioEmpleado",
     "Huesped",
     "MetodoPago",

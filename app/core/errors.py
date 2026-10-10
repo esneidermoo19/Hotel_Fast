@@ -104,6 +104,18 @@ class ReglaNegocioError(AppError):
         super().__init__(detail)
 
 
+class FormatoImagenInvalidoError(ValidacionError):
+    codigo = "FORMATO_IMAGEN_INVALIDO"
+
+
+class ImagenMuyGrandeError(ValidacionError):
+    codigo = "IMAGEN_MUY_GRANDE"
+
+
+class MaximoImagenesError(ConflictoError):
+    codigo = "MAXIMO_IMAGENES"
+
+
 class DemasiadasSolicitudesError(AppError):
     codigo = "DEMASIADAS_SOLICITUDES"
     status_code = status.HTTP_429_TOO_MANY_REQUESTS

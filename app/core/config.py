@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     cors_origin_regex: str | None = None
     login_rate_limit_per_minute: int = 5
     rate_limit_enabled: bool = True
+    media_dir: str = "./media"
+    media_url_prefix: str = "/media"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

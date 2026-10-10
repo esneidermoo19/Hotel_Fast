@@ -1,12 +1,16 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CheckConstraint, DateTime, Numeric, Text, func
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.enums import EstadoHabitacion, EstadoLimpieza, TipoHabitacion
+
+if TYPE_CHECKING:
+    from app.models.habitacion_imagen import HabitacionImagen
 
 
 class Habitacion(Base):
@@ -56,4 +60,10 @@ class Habitacion(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
+    )
+
+    imagenes: Mapped[list["HabitacionImagen"]] = relationship(
+        back_populates="habitacion",
+        cascade="all, delete-orphan",
+        order_by="HabitacionImagen.orden",
     )

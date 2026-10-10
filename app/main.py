@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
+from fastapi.staticfiles import StaticFiles
 from pydantic.alias_generators import to_camel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -92,6 +93,11 @@ app.include_router(cuentas.router)
 app.include_router(horarios.router)
 app.include_router(reportes.router)
 app.include_router(dashboard.router)
+app.mount(
+    settings.media_url_prefix,
+    StaticFiles(directory=settings.media_dir, check_dir=False),
+    name="media",
+)
 
 
 @app.get("/docs", include_in_schema=False)

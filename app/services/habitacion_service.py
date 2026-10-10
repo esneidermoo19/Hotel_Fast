@@ -1,13 +1,48 @@
+import logging
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.models import EstadoHabitacion, EstadoLimpieza, Habitacion, TipoHabitacion
+from app.core.config import settings
+from app.core.errors import (
+    FormatoImagenInvalidoError,
+    ImagenMuyGrandeError,
+    MaximoImagenesError,
+    NoEncontradoError,
+)
+from app.models import (
+    EstadoHabitacion,
+    EstadoLimpieza,
+    Habitacion,
+    HabitacionImagen,
+    TipoHabitacion,
+)
 from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
+from app.services import auditoria_service
 from app.services.reserva_service import ejecutar_con_auditoria
+
+logger = logging.getLogger(__name__)
 
 # Accion de auditoria del cambio de estado de limpieza de una habitacion.
 ACCION_LIMPIEZA_HABITACION = "LIMPIEZA"
+
+# Acciones de auditoria para la gestion de imagenes de habitaciones.
+ACCION_SUBIR_IMAGEN = "CREAR"
+ACCION_BORRAR_IMAGEN = "ELIMINAR"
+
+# Limites y formatos permitidos para las imagenes.
+MAX_TAMANO_IMAGEN = 5 * 1024 * 1024
+MAX_IMAGENES_POR_HABITACION = 10
+BLOQUE_LECTURA = 64 * 1024
+
+FIRMA_JPEG = b"\xff\xd8\xff"
+FIRMA_PNG = b"\x89PNG\r\n\x1a\n"
+FIRMA_RIFF = b"RIFF"
+FIRMA_WEBP = b"WEBP"
 
 
 class HabitacionNoEncontradaError(LookupError):
@@ -44,11 +79,16 @@ def listar_habitaciones(
         consulta = consulta.where(Habitacion.tipo == tipo)
     if limpieza is not None:
         consulta = consulta.where(Habitacion.limpieza == limpieza)
+    consulta = consulta.options(selectinload(Habitacion.imagenes))
     return list(db.scalars(consulta).all())
 
 
 def obtener_habitacion(db: Session, habitacion_id: int) -> Habitacion:
-    habitacion = db.get(Habitacion, habitacion_id)
+    habitacion = db.scalar(
+        select(Habitacion)
+        .options(selectinload(Habitacion.imagenes))
+        .where(Habitacion.id == habitacion_id)
+    )
     if habitacion is None:
         raise HabitacionNoEncontradaError
     return habitacion
@@ -151,6 +191,197 @@ def actualizar_limpieza(
 
 def eliminar_habitacion(db: Session, habitacion_id: int) -> None:
     habitacion = obtener_habitacion(db, habitacion_id)
+    rutas = [imagen.ruta for imagen in habitacion.imagenes]
     # El servicio de reservas podra lanzar esta excepcion cuando se incorpore.
     db.delete(habitacion)
     db.commit()
+    for ruta in rutas:
+        _eliminar_archivo(ruta)
+
+
+def _directorio_media() -> Path:
+    directorio = Path(settings.media_dir)
+    directorio.mkdir(parents=True, exist_ok=True)
+    return directorio
+
+
+def _eliminar_archivo(ruta: str) -> None:
+    """Borra un archivo de medios de forma no bloqueante.
+
+    Si el archivo no existe o no se puede eliminar, solo se registra un aviso
+    para no romper la operacion que ya se confirmo en base de datos.
+    """
+    try:
+        (Path(settings.media_dir) / ruta).unlink(missing_ok=True)
+    except OSError as error:
+        logger.warning("No se pudo eliminar el archivo %s: %s", ruta, error)
+
+
+def _detectar_formato(contenido: bytes) -> str | None:
+    if contenido.startswith(FIRMA_JPEG):
+        return "jpg"
+    if contenido.startswith(FIRMA_PNG):
+        return "png"
+    if (
+        len(contenido) >= 12
+        and contenido[:4] == FIRMA_RIFF
+        and contenido[8:12] == FIRMA_WEBP
+    ):
+        return "webp"
+    return None
+
+
+def _leer_contenido(archivo: UploadFile) -> bytes:
+    contenido = bytearray()
+    while True:
+        bloque = archivo.file.read(BLOQUE_LECTURA)
+        if not bloque:
+            break
+        contenido.extend(bloque)
+        if len(contenido) > MAX_TAMANO_IMAGEN:
+            raise ImagenMuyGrandeError(
+                "La imagen supera el tamano maximo permitido (5 MB)"
+            )
+    return bytes(contenido)
+
+
+def _promover_principal(db: Session, habitacion_id: int) -> None:
+    siguiente = db.scalar(
+        select(HabitacionImagen)
+        .where(HabitacionImagen.habitacion_id == habitacion_id)
+        .order_by(HabitacionImagen.orden, HabitacionImagen.id)
+    )
+    if siguiente is not None:
+        siguiente.es_principal = True
+
+
+def subir_imagen(
+    db: Session,
+    habitacion_id: int,
+    archivo: UploadFile,
+    usuario_id: int,
+) -> HabitacionImagen:
+    habitacion = db.get(Habitacion, habitacion_id)
+    if habitacion is None:
+        raise NoEncontradoError("No se encontro la habitacion")
+
+    contenido = _leer_contenido(archivo)
+    extension = _detectar_formato(contenido)
+    if extension is None:
+        raise FormatoImagenInvalidoError(
+            "El archivo debe ser una imagen JPEG, PNG o WEBP"
+        )
+
+    imagenes = list(
+        db.scalars(
+            select(HabitacionImagen).where(
+                HabitacionImagen.habitacion_id == habitacion_id
+            )
+        ).all()
+    )
+    if len(imagenes) >= MAX_IMAGENES_POR_HABITACION:
+        raise MaximoImagenesError(
+            "La habitacion ya tiene el maximo de imagenes permitidas"
+        )
+
+    nombre = f"{uuid4().hex}.{extension}"
+    (_directorio_media() / nombre).write_bytes(contenido)
+
+    imagen = HabitacionImagen(
+        habitacion_id=habitacion_id,
+        ruta=nombre,
+        orden=len(imagenes) + 1,
+        es_principal=not imagenes,
+    )
+    db.add(imagen)
+    db.flush()
+    try:
+        auditoria_service.registrar_auditoria(
+            db,
+            usuario_id=usuario_id,
+            accion=ACCION_SUBIR_IMAGEN,
+            entidad="HabitacionImagen",
+            entidad_id=imagen.id,
+            detalle={"habitacion_id": habitacion_id, "ruta": nombre},
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        _eliminar_archivo(nombre)
+        raise
+    db.refresh(imagen)
+    return imagen
+
+
+def eliminar_imagen(
+    db: Session,
+    habitacion_id: int,
+    imagen_id: int,
+    usuario_id: int,
+) -> None:
+    imagen = db.scalar(
+        select(HabitacionImagen).where(
+            HabitacionImagen.id == imagen_id,
+            HabitacionImagen.habitacion_id == habitacion_id,
+        )
+    )
+    if imagen is None:
+        raise NoEncontradoError("Imagen no encontrada")
+
+    era_principal = imagen.es_principal
+    ruta = imagen.ruta
+    db.delete(imagen)
+    db.flush()
+    if era_principal:
+        _promover_principal(db, habitacion_id)
+    try:
+        auditoria_service.registrar_auditoria(
+            db,
+            usuario_id=usuario_id,
+            accion=ACCION_BORRAR_IMAGEN,
+            entidad="HabitacionImagen",
+            entidad_id=imagen_id,
+            detalle={"habitacion_id": habitacion_id, "ruta": ruta},
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    _eliminar_archivo(ruta)
+
+
+def marcar_imagen_principal(
+    db: Session,
+    habitacion_id: int,
+    imagen_id: int,
+) -> HabitacionImagen:
+    habitacion = db.get(Habitacion, habitacion_id)
+    if habitacion is None:
+        raise NoEncontradoError("No se encontro la habitacion")
+
+    imagen = db.scalar(
+        select(HabitacionImagen).where(
+            HabitacionImagen.id == imagen_id,
+            HabitacionImagen.habitacion_id == habitacion_id,
+        )
+    )
+    if imagen is None:
+        raise NoEncontradoError("Imagen no encontrada")
+
+    if not imagen.es_principal:
+        otras = db.scalars(
+            select(HabitacionImagen).where(
+                HabitacionImagen.habitacion_id == habitacion_id,
+                HabitacionImagen.es_principal.is_(True),
+            )
+        ).all()
+        for otra in otras:
+            otra.es_principal = False
+        db.flush()
+        imagen.es_principal = True
+        db.commit()
+
+    db.refresh(imagen)
+    return imagen

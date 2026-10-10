@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import settings
 from app.routers.habitaciones import router
 
 
@@ -220,10 +221,14 @@ def test_listar_sin_filtros_sigue_devolviendo_todas_las_habitaciones(
         "descripcion",
         "createdAt",
         "updatedAt",
+        "imagenes",
+        "imagenPrincipalUrl",
     }
     for item in datos:
         assert set(item) == campos_antes | {"limpieza"}
         assert item["limpieza"] in {"LIMPIA", "SUCIA"}
+        assert item["imagenes"] == []
+        assert item["imagenPrincipalUrl"] is None
         assert isinstance(item["precioPorNoche"], float)
 
 
@@ -390,3 +395,219 @@ def test_limpieza_requiere_token(client: TestClient) -> None:
 
     assert response.status_code == 401
     assert response.headers["www-authenticate"] == "Bearer"
+
+
+# --- Imagenes de habitaciones -------------------------------------------------
+
+
+FIRMA_PNG = b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.fixture
+def media_dir(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "media_dir", str(tmp_path))
+    return tmp_path
+
+
+def _crear_habitacion(
+    client: TestClient,
+    headers: dict[str, str],
+    numero: int,
+) -> int:
+    respuesta = client.post(
+        "/api/habitaciones",
+        json=habitacion_payload(numero),
+        headers=headers,
+    )
+    assert respuesta.status_code == 201
+    return respuesta.json()["id"]
+
+
+def _subir_imagen(
+    client: TestClient,
+    headers: dict[str, str],
+    habitacion_id: int,
+    nombre: str,
+    contenido: bytes = FIRMA_PNG + b"contenido",
+) -> dict:
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": (nombre, contenido, "image/png")},
+        headers=headers,
+    )
+    assert respuesta.status_code == 201
+    return respuesta.json()
+
+
+def test_subir_imagen_valida(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 901)
+
+    imagen = _subir_imagen(client, admin_headers, habitacion_id, "foto.png")
+
+    assert imagen["esPrincipal"] is True
+    assert imagen["orden"] == 1
+    assert imagen["url"].startswith("/media/")
+    assert imagen["url"].endswith(".png")
+    assert (media_dir / imagen["url"].split("/")[-1]).exists()
+
+
+def test_subir_imagen_tipo_invalido(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 902)
+
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": ("foto.gif", b"GIF89a\x01\x00\x01\x00", "image/gif")},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["code"] == "FORMATO_IMAGEN_INVALIDO"
+
+
+def test_subir_imagen_png_con_contenido_falso(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 903)
+
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": ("foto.png", b"esto no es una imagen", "image/png")},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["code"] == "FORMATO_IMAGEN_INVALIDO"
+
+
+def test_subir_imagen_demasiado_grande(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 904)
+    contenido = FIRMA_PNG + b"0" * (5 * 1024 * 1024)
+
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": ("foto.png", contenido, "image/png")},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 422
+    assert respuesta.json()["code"] == "IMAGEN_MUY_GRANDE"
+
+
+def test_subir_imagen_sin_permiso(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    recepcion_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 905)
+
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": ("foto.png", FIRMA_PNG, "image/png")},
+        headers=recepcion_headers,
+    )
+
+    assert respuesta.status_code == 403
+
+
+def test_borrar_principal_promueve_otra(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 906)
+    primera = _subir_imagen(client, admin_headers, habitacion_id, "a.png")
+    segunda = _subir_imagen(client, admin_headers, habitacion_id, "b.png")
+
+    assert primera["esPrincipal"] is True
+    assert segunda["esPrincipal"] is False
+
+    eliminada = client.delete(
+        f"/api/habitaciones/{habitacion_id}/imagenes/{primera['id']}",
+        headers=admin_headers,
+    )
+    assert eliminada.status_code == 204
+
+    detalle = client.get(
+        f"/api/habitaciones/{habitacion_id}", headers=admin_headers
+    ).json()
+    assert detalle["imagenPrincipalUrl"] == segunda["url"]
+    assert [imagen["id"] for imagen in detalle["imagenes"]] == [segunda["id"]]
+    assert detalle["imagenes"][0]["esPrincipal"] is True
+
+
+def test_listar_incluye_imagen_principal_url(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 907)
+    _subir_imagen(client, admin_headers, habitacion_id, "foto.png")
+
+    listado = client.get("/api/habitaciones", headers=admin_headers)
+
+    assert listado.status_code == 200
+    item = listado.json()[0]
+    assert item["imagenPrincipalUrl"].startswith("/media/")
+    assert item["imagenes"][0]["esPrincipal"] is True
+    assert item["imagenes"][0]["url"].startswith("/media/")
+
+
+def test_marcar_imagen_principal(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 908)
+    primera = _subir_imagen(client, admin_headers, habitacion_id, "a.png")
+    segunda = _subir_imagen(client, admin_headers, habitacion_id, "b.png")
+
+    marcada = client.patch(
+        f"/api/habitaciones/{habitacion_id}/imagenes/{segunda['id']}/principal",
+        headers=admin_headers,
+    )
+
+    assert marcada.status_code == 200
+    assert marcada.json()["esPrincipal"] is True
+
+    detalle = client.get(
+        f"/api/habitaciones/{habitacion_id}", headers=admin_headers
+    ).json()
+    assert detalle["imagenPrincipalUrl"] == segunda["url"]
+    assert detalle["imagenes"][0]["id"] == primera["id"]
+    assert detalle["imagenes"][0]["esPrincipal"] is False
+    assert detalle["imagenes"][1]["id"] == segunda["id"]
+    assert detalle["imagenes"][1]["esPrincipal"] is True
+
+
+def test_maximo_imagenes_devuelve_409(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 909)
+    for i in range(10):
+        _subir_imagen(client, admin_headers, habitacion_id, f"foto_{i}.png")
+
+    respuesta = client.post(
+        f"/api/habitaciones/{habitacion_id}/imagenes",
+        files={"archivo": ("foto_10.png", FIRMA_PNG, "image/png")},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 409
+    assert respuesta.json()["code"] == "MAXIMO_IMAGENES"
