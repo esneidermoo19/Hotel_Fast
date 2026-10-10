@@ -40,6 +40,7 @@ dependencies:
 
   # Almacenamiento clave-valor multiplataforma para los tokens de sesion.
   shared_preferences: ^2.3.0
+  file_picker: ^13.1.0
 
 dev_dependencies:
   flutter_test:

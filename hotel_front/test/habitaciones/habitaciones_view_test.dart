@@ -133,4 +133,22 @@ void main() {
 
     expect(find.text('Nueva habitación'), findsNothing);
   });
+
+  testWidgets('al tocar una tarjeta se abre el detalle', (tester) async {
+    final servicio = HabitacionesService(
+      crearApiSimulada(
+        (request) async =>
+            http.Response(jsonEncode([jsonDecode(_habitacionJson())]), 200),
+      ),
+    );
+
+    await tester.pumpWidget(_envoltura(servicio, await _catalogosCargados()));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('#101'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cerrar'), findsOneWidget);
+    expect(find.text('Capacidad: 2 personas'), findsOneWidget);
+  });
 }
