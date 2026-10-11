@@ -181,6 +181,7 @@ Unicos roles existentes (`RolUsuario`): `ADMIN` y `RECEPCION`.
 | Metodo | Ruta | Auth | Notas |
 | --- | --- | --- | --- |
 | GET | `/api/habitaciones` | Bearer (ADMIN/RECEPCION) | Arreglo completo. Filtros: `estado`, `tipo`, `limpieza` |
+| GET | `/api/habitaciones/room-rack` | Bearer (ADMIN/RECEPCION) | Habitaciones agrupadas por `piso` (arreglo de `{ piso, habitaciones[] }`), ordenadas por numero |
 | GET | `/api/habitaciones/{habitacionId}` | Bearer | 404 si no existe |
 | POST | `/api/habitaciones` | ADMIN | 201. 409 si el `numero` ya existe |
 | PUT | `/api/habitaciones/{habitacionId}` | ADMIN | Reemplazo con `HabitacionUpdate` (= Create) |
@@ -191,9 +192,9 @@ Unicos roles existentes (`RolUsuario`): `ADMIN` y `RECEPCION`.
 | PATCH | `/api/habitaciones/{habitacionId}/imagenes/{imagenId}/principal` | ADMIN | Marca la imagen como principal |
 | DELETE | `/api/habitaciones/{habitacionId}` | ADMIN | 204. 409 si tiene reservas futuras |
 
-**HabitacionCreate/Update**: `numero` (> 0), `tipo`, `capacidad` (>= 1),
-`precioPorNoche` (> 0, 2 decimales), `estado` (default `DISPONIBLE`),
-`descripcion` (opcional).
+**HabitacionCreate/Update**: `numero` (> 0), `piso` (> 0), `tipo`,
+`capacidad` (>= 1), `precioPorNoche` (> 0, 2 decimales), `estado`
+(default `DISPONIBLE`), `descripcion` (opcional).
 
 **HabitacionRead**: lo anterior + `id`, `limpieza`, `createdAt`, `updatedAt`,
 `imagenes` (arreglo de `HabitacionImagenRead`) e `imagenPrincipalUrl`

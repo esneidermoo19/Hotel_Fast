@@ -53,6 +53,7 @@ def crear_habitacion(
     db: Session,
     *,
     numero: int = 101,
+    piso: int | None = None,
     tipo: TipoHabitacion = TipoHabitacion.DOBLE,
     capacidad: int = 2,
     precio_por_noche: Decimal = Decimal("150000.00"),
@@ -63,6 +64,7 @@ def crear_habitacion(
     from app.models import EstadoHabitacion
     habitacion = Habitacion(
         numero=numero,
+        piso=piso if piso is not None else max(1, numero // 100),
         tipo=tipo,
         capacidad=capacidad,
         precio_por_noche=precio_por_noche,

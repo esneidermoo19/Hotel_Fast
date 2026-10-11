@@ -21,7 +21,12 @@ from app.models import (
     HabitacionImagen,
     TipoHabitacion,
 )
-from app.schemas.habitacion import HabitacionCreate, HabitacionUpdate
+from app.schemas.habitacion import (
+    HabitacionCreate,
+    HabitacionUpdate,
+    RoomRackHabitacion,
+    RoomRackPiso,
+)
 from app.services import auditoria_service
 from app.services.reserva_service import ejecutar_con_auditoria
 
@@ -81,6 +86,38 @@ def listar_habitaciones(
         consulta = consulta.where(Habitacion.limpieza == limpieza)
     consulta = consulta.options(selectinload(Habitacion.imagenes))
     return list(db.scalars(consulta).all())
+
+
+def room_rack(db: Session) -> list[RoomRackPiso]:
+    """Agrupa las habitaciones por piso para el tablero de recepcion.
+
+    Devuelve un arreglo de pisos (orden ascendente) y, dentro de cada piso, las
+    habitaciones ordenadas por numero. Incluye el estado operativo y la
+    limpieza para que el room rack muestre la situacion de un vistazo.
+    """
+    habitaciones = db.scalars(
+        select(Habitacion).order_by(Habitacion.piso, Habitacion.numero)
+    ).all()
+
+    por_piso: dict[int, list[RoomRackHabitacion]] = {}
+    for habitacion in habitaciones:
+        por_piso.setdefault(habitacion.piso, []).append(
+            RoomRackHabitacion(
+                id=habitacion.id,
+                numero=habitacion.numero,
+                piso=habitacion.piso,
+                tipo=habitacion.tipo,
+                capacidad=habitacion.capacidad,
+                precio_por_noche=habitacion.precio_por_noche,
+                estado=habitacion.estado,
+                limpieza=habitacion.limpieza,
+            )
+        )
+
+    return [
+        RoomRackPiso(piso=piso, habitaciones=habitaciones_del_piso)
+        for piso, habitaciones_del_piso in sorted(por_piso.items())
+    ]
 
 
 def obtener_habitacion(db: Session, habitacion_id: int) -> Habitacion:

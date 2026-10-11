@@ -20,6 +20,7 @@ from app.schemas.habitacion import (
     HabitacionLimpieza,
     HabitacionRead,
     HabitacionUpdate,
+    RoomRackPiso,
 )
 from app.services import habitacion_service
 
@@ -56,6 +57,28 @@ def listar_habitaciones(
         tipo=tipo,
         limpieza=limpieza,
     )
+
+
+@router.get(
+    "/room-rack",
+    response_model=list[RoomRackPiso],
+    summary="Consultar room rack",
+    description=(
+        "Devuelve las habitaciones agrupadas por piso, con su estado operativo "
+        "y limpieza, para el tablero de recepcion. Los pisos y las habitaciones "
+        "vienen en orden ascendente."
+    ),
+    responses={
+        200: {"description": "Habitaciones agrupadas por piso"},
+        401: {"description": "Token de acceso invalido o ausente"},
+        403: {"description": "Rol sin permisos para consultar el room rack"},
+    },
+)
+def obtener_room_rack(
+    db: Annotated[Session, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(usuarios_autorizados)],
+) -> list[RoomRackPiso]:
+    return habitacion_service.room_rack(db)
 
 
 @router.get(

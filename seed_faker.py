@@ -132,6 +132,7 @@ def generar_datos() -> None:
         for numero, tipo, capacidad, precio in HABITACIONES:
             habitacion = Habitacion(
                 numero=numero,
+                piso=max(1, numero // 100),
                 tipo=tipo,
                 capacidad=capacidad,
                 precio_por_noche=Decimal(precio),
