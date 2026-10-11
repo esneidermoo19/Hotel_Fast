@@ -47,5 +47,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name == 'postgresql':
-        op.drop_constraint('ck_habitaciones_piso_positivo', 'habitaciones', type_='check')
+        op.drop_constraint('piso_positivo', 'habitaciones', type_='check')
     op.drop_column('habitaciones', 'piso')
