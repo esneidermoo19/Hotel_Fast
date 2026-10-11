@@ -30,6 +30,7 @@ String _habitacionJson({
   return jsonEncode({
     'id': id,
     'numero': numero,
+    'piso': 1,
     'tipo': 'DOBLE',
     'capacidad': 2,
     'precioPorNoche': 120.5,

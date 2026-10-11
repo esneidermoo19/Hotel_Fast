@@ -17,12 +17,14 @@ class Habitacion(Base):
     __tablename__ = "habitaciones"
     __table_args__ = (
         CheckConstraint("numero > 0", name="numero_positivo"),
+        CheckConstraint("piso > 0", name="piso_positivo"),
         CheckConstraint("capacidad >= 1", name="capacidad_positiva"),
         CheckConstraint("precio_por_noche > 0", name="precio_positivo"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     numero: Mapped[int] = mapped_column(unique=True, nullable=False)
+    piso: Mapped[int] = mapped_column(nullable=False)
     tipo: Mapped[TipoHabitacion] = mapped_column(
         SqlEnum(
             TipoHabitacion,

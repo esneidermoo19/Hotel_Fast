@@ -13,6 +13,7 @@ String _habitacionJson({int id = 1, int numero = 101}) {
   return jsonEncode({
     'id': id,
     'numero': numero,
+    'piso': 1,
     'tipo': 'DOBLE',
     'capacidad': 2,
     'precioPorNoche': 120.5,
@@ -59,6 +60,7 @@ void main() {
     final creada = await servicio.crear(
       const HabitacionPayload(
         numero: 101,
+        piso: 1,
         tipo: 'DOBLE',
         capacidad: 2,
         precioPorNoche: 120.5,
@@ -70,6 +72,7 @@ void main() {
     expect(capturado!.url.path, '/api/habitaciones');
     expect(jsonDecode(capturado!.body), {
       'numero': 101,
+      'piso': 1,
       'tipo': 'DOBLE',
       'capacidad': 2,
       'precioPorNoche': 120.5,
@@ -126,6 +129,7 @@ void main() {
       servicio.crear(
         const HabitacionPayload(
           numero: 101,
+          piso: 1,
           tipo: 'DOBLE',
           capacidad: 2,
           precioPorNoche: 100,

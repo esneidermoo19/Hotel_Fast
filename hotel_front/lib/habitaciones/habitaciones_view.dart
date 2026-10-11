@@ -760,6 +760,7 @@ class _DialogoHabitacion extends StatefulWidget {
 class _DialogoHabitacionState extends State<_DialogoHabitacion> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _numero;
+  late final TextEditingController _piso;
   late final TextEditingController _capacidad;
   late final TextEditingController _precio;
   late final TextEditingController _descripcion;
@@ -779,6 +780,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
     super.initState();
     final tipos = widget.catalogos.valores('tipos_habitacion');
     _numero = TextEditingController(text: widget.habitacion?.numero.toString());
+    _piso = TextEditingController(text: widget.habitacion?.piso.toString());
     _capacidad = TextEditingController(
       text: widget.habitacion?.capacidad.toString(),
     );
@@ -797,6 +799,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
   @override
   void dispose() {
     _numero.dispose();
+    _piso.dispose();
     _capacidad.dispose();
     _precio.dispose();
     _descripcion.dispose();
@@ -811,6 +814,7 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
     });
     final datos = HabitacionPayload(
       numero: int.parse(_numero.text.trim()),
+      piso: int.parse(_piso.text.trim()),
       tipo: _tipo,
       capacidad: int.parse(_capacidad.text.trim()),
       precioPorNoche: double.parse(_precio.text.trim()),
@@ -936,6 +940,18 @@ class _DialogoHabitacionState extends State<_DialogoHabitacion> {
                   final numero = int.tryParse(valor ?? '');
                   return (numero == null || numero <= 0)
                       ? 'Ingresa un número válido'
+                      : null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _piso,
+                decoration: const InputDecoration(labelText: 'Piso'),
+                keyboardType: TextInputType.number,
+                validator: (valor) {
+                  final piso = int.tryParse(valor ?? '');
+                  return (piso == null || piso <= 0)
+                      ? 'Ingresa un piso válido'
                       : null;
                 },
               ),

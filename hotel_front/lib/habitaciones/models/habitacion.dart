@@ -42,6 +42,7 @@ class Habitacion {
   const Habitacion({
     required this.id,
     required this.numero,
+    required this.piso,
     required this.tipo,
     required this.capacidad,
     required this.precioPorNoche,
@@ -54,6 +55,7 @@ class Habitacion {
 
   final int id;
   final int numero;
+  final int piso;
   final String tipo;
   final int capacidad;
 
@@ -78,6 +80,7 @@ class Habitacion {
     return Habitacion(
       id: leerEntero(json['id']) ?? 0,
       numero: leerEntero(json['numero']) ?? 0,
+      piso: leerEntero(json['piso']) ?? 0,
       tipo: leerTexto(json['tipo']) ?? '',
       capacidad: leerEntero(json['capacidad']) ?? 0,
       precioPorNoche: leerMonto(json['precioPorNoche']) ?? 0,
@@ -97,6 +100,7 @@ class Habitacion {
 class HabitacionPayload {
   const HabitacionPayload({
     required this.numero,
+    required this.piso,
     required this.tipo,
     required this.capacidad,
     required this.precioPorNoche,
@@ -105,6 +109,7 @@ class HabitacionPayload {
   });
 
   final int numero;
+  final int piso;
   final String tipo;
   final int capacidad;
   final double precioPorNoche;
@@ -114,6 +119,7 @@ class HabitacionPayload {
   Map<String, dynamic> toJson() {
     return {
       'numero': numero,
+      'piso': piso,
       'tipo': tipo,
       'capacidad': capacidad,
       'precioPorNoche': precioPorNoche,

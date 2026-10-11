@@ -10,6 +10,7 @@ from app.schemas.base import CamelCaseSchema
 
 class HabitacionCreate(CamelCaseSchema):
     numero: int = Field(gt=0)
+    piso: int = Field(gt=0)
     tipo: TipoHabitacion
     capacidad: int = Field(ge=1)
     precio_por_noche: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
@@ -59,3 +60,27 @@ class HabitacionRead(HabitacionCreate):
             if imagen.es_principal:
                 return imagen.url
         return None
+
+
+class RoomRackHabitacion(CamelCaseSchema):
+    """Resumen de una habitacion para el tablero (room rack) de recepcion."""
+
+    id: int
+    numero: int
+    piso: int
+    tipo: TipoHabitacion
+    capacidad: int
+    precio_por_noche: Decimal
+    estado: EstadoHabitacion
+    limpieza: EstadoLimpieza
+
+    @field_serializer("precio_por_noche", when_used="json")
+    def serialize_precio_por_noche(self, value: Decimal) -> float:
+        return float(value)
+
+
+class RoomRackPiso(CamelCaseSchema):
+    """Habitaciones de un piso del hotel, ordenadas por numero."""
+
+    piso: int
+    habitaciones: list[RoomRackHabitacion]

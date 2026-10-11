@@ -62,6 +62,7 @@ def test_validacion_422_lista_campos_en_camel_case(
         "/api/habitaciones",
         json={
             "numero": 0,
+            "piso": 0,
             "tipo": "SIMPLE",
             "capacidad": 0,
             "precioPorNoche": 0,
@@ -73,7 +74,7 @@ def test_validacion_422_lista_campos_en_camel_case(
     cuerpo = response.json()
     assert cuerpo["code"] == "VALIDACION"
     campos = {detalle["campo"] for detalle in cuerpo["errors"]}
-    assert campos == {"numero", "capacidad", "precioPorNoche"}
+    assert campos == {"numero", "piso", "capacidad", "precioPorNoche"}
     assert all(detalle["mensaje"] for detalle in cuerpo["errors"])
 
 
@@ -85,6 +86,7 @@ def test_validacion_422_en_body_ignora_prefijo_body(
         "/api/habitaciones",
         json={
             "numero": 10,
+            "piso": 1,
             "tipo": "TIPO_INEXISTENTE",
             "capacidad": 1,
             "precioPorNoche": 10,
@@ -106,6 +108,7 @@ def test_conflicto_usa_codigo_conflicto(
 ) -> None:
     payload = {
         "numero": 777,
+        "piso": 1,
         "tipo": "DOBLE",
         "capacidad": 2,
         "precioPorNoche": 100,

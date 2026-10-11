@@ -8,6 +8,7 @@ from app.routers.habitaciones import router
 def habitacion_payload(numero: int, **cambios: object) -> dict[str, object]:
     payload: dict[str, object] = {
         "numero": numero,
+        "piso": 1,
         "tipo": "DOBLE",
         "capacidad": 2,
         "precioPorNoche": 120.50,
@@ -163,6 +164,7 @@ def test_recepcion_no_puede_crear_actualizar_ni_eliminar(
         {"precioPorNoche": 0},
         {"capacidad": 0},
         {"tipo": "TRIPLE"},
+        {"piso": 0},
     ],
 )
 def test_validacion_de_habitacion_devuelve_422(
@@ -214,6 +216,7 @@ def test_listar_sin_filtros_sigue_devolviendo_todas_las_habitaciones(
     campos_antes = {
         "id",
         "numero",
+        "piso",
         "tipo",
         "capacidad",
         "precioPorNoche",
@@ -285,6 +288,74 @@ def test_filtro_invalido_devuelve_422(
     response = client.get("/api/habitaciones", params=params, headers=admin_headers)
 
     assert response.status_code == 422
+
+
+# --- Room rack ------------------------------------------------------------------
+
+
+def test_room_rack_agrupa_por_piso_y_ordena(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    creadas = [
+        client.post(
+            "/api/habitaciones",
+            json=habitacion_payload(numero, piso=piso),
+            headers=admin_headers,
+        ).json()
+        for numero, piso in [(102, 1), (101, 1), (201, 2), (301, 3)]
+    ]
+    assert all(isinstance(c["id"], int) for c in creadas)
+
+    response = client.get("/api/habitaciones/room-rack", headers=admin_headers)
+
+    assert response.status_code == 200
+    pisos = response.json()
+    assert [p["piso"] for p in pisos] == [1, 2, 3]
+    assert [h["numero"] for h in pisos[0]["habitaciones"]] == [101, 102]
+    assert [h["numero"] for h in pisos[1]["habitaciones"]] == [201]
+    assert [h["numero"] for h in pisos[2]["habitaciones"]] == [301]
+
+
+def test_room_rack_incluye_estado_y_limpieza(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    creada = client.post(
+        "/api/habitaciones",
+        json=habitacion_payload(701, estado="OCUPADA"),
+        headers=admin_headers,
+    ).json()
+    client.patch(
+        f"/api/habitaciones/{creada['id']}/limpieza",
+        json={"limpieza": "SUCIA"},
+        headers=admin_headers,
+    )
+
+    response = client.get("/api/habitaciones/room-rack", headers=admin_headers)
+
+    assert response.status_code == 200
+    habitacion = response.json()[0]["habitaciones"][0]
+    assert habitacion["estado"] == "OCUPADA"
+    assert habitacion["limpieza"] == "SUCIA"
+    assert isinstance(habitacion["precioPorNoche"], float)
+
+
+def test_room_rack_sin_habitaciones_devuelve_lista_vacia(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    response = client.get("/api/habitaciones/room-rack", headers=admin_headers)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_room_rack_requiere_token(client: TestClient) -> None:
+    response = client.get("/api/habitaciones/room-rack")
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
 
 
 # --- Limpieza ------------------------------------------------------------------
