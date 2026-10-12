@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/network/api_exception.dart';
+import '../shared/utils/moneda.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/esqueleto.dart';
 import 'dashboard_service.dart';
@@ -62,43 +63,63 @@ class _Indicadores extends StatelessWidget {
     final tarjetas = <Widget>[
       _TarjetaIndicador(
         etiqueta: 'Reservas activas',
-        valor: resumen.reservasActivas,
+        valor: '${resumen.reservasActivas}',
         icono: Icons.event_available_outlined,
       ),
       _TarjetaIndicador(
         etiqueta: 'Pendientes de check-in',
-        valor: resumen.reservasPendientesCheckIn,
+        valor: '${resumen.reservasPendientesCheckIn}',
         icono: Icons.login_outlined,
       ),
       _TarjetaIndicador(
         etiqueta: 'Huéspedes alojados',
-        valor: resumen.huespedesAlojados,
+        valor: '${resumen.huespedesAlojados}',
         icono: Icons.people_outline,
       ),
       _TarjetaIndicador(
         etiqueta: 'Check-outs del día',
-        valor: resumen.checkOutsDelDia,
+        valor: '${resumen.checkOutsDelDia}',
         icono: Icons.logout_outlined,
       ),
       _TarjetaIndicador(
         etiqueta: 'Habitaciones disponibles',
-        valor: resumen.habitacionesDisponibles,
+        valor: '${resumen.habitacionesDisponibles}',
         icono: Icons.check_circle_outline,
       ),
       _TarjetaIndicador(
         etiqueta: 'Habitaciones ocupadas',
-        valor: resumen.habitacionesOcupadas,
+        valor: '${resumen.habitacionesOcupadas}',
         icono: Icons.meeting_room_outlined,
       ),
       _TarjetaIndicador(
         etiqueta: 'En mantenimiento',
-        valor: resumen.habitacionesEnMantenimiento,
+        valor: '${resumen.habitacionesEnMantenimiento}',
         icono: Icons.build_outlined,
       ),
       _TarjetaIndicador(
         etiqueta: 'Cuentas con saldo',
-        valor: resumen.cuentasConSaldoPendiente,
+        valor: '${resumen.cuentasConSaldoPendiente}',
         icono: Icons.receipt_long_outlined,
+      ),
+      _TarjetaIndicador(
+        etiqueta: 'Ocupación',
+        valor: _formatearPorcentaje(resumen.tasaOcupacion),
+        icono: Icons.pie_chart_outline,
+      ),
+      _TarjetaIndicador(
+        etiqueta: 'Ingresos del día',
+        valor: formatearMonto(resumen.ingresosDelDia),
+        icono: Icons.payments_outlined,
+      ),
+      _TarjetaIndicador(
+        etiqueta: 'RevPAR',
+        valor: formatearMonto(resumen.revpar),
+        icono: Icons.trending_up_outlined,
+      ),
+      _TarjetaIndicador(
+        etiqueta: 'Balance de caja',
+        valor: formatearMonto(resumen.balanceCaja),
+        icono: Icons.account_balance_wallet_outlined,
       ),
     ];
 
@@ -126,6 +147,8 @@ class _Indicadores extends StatelessWidget {
   }
 }
 
+String _formatearPorcentaje(double valor) => '${valor.toStringAsFixed(1)}%';
+
 class _TarjetaIndicador extends StatelessWidget {
   const _TarjetaIndicador({
     required this.etiqueta,
@@ -134,7 +157,7 @@ class _TarjetaIndicador extends StatelessWidget {
   });
 
   final String etiqueta;
-  final int valor;
+  final String valor;
   final IconData icono;
 
   @override
@@ -155,10 +178,7 @@ class _TarjetaIndicador extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '$valor',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
+                  Text(valor, style: Theme.of(context).textTheme.headlineSmall),
                   Text(etiqueta, style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),

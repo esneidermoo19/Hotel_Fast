@@ -321,7 +321,11 @@ anulados, excluye `REEMBOLSO`), `saldoPendiente`
 `reservasPendientesCheckIn` (PENDIENTE+CONFIRMADA), `huespedesAlojados`
 (suma de huespedes en CHECK_IN), `checkOutsDelDia` (por `checkOutReal` del dia
 en Bogota), `habitacionesDisponibles`, `habitacionesOcupadas`,
-`habitacionesEnMantenimiento`, `cuentasConSaldoPendiente`.
+`habitacionesEnMantenimiento`, `cuentasConSaldoPendiente`, `tasaOcupacion`
+(porcentaje de ocupadas sobre operativas), `ingresosDelDia` (pagos vigentes
+de hoy, restando reembolsos), `revpar` (ingresos del dia por habitacion
+operativa) y `balanceCaja` (saldo neto de caja acumulado). Los importes van
+como numero.
 
 ### 6.9 Usuarios (`/api/usuarios`) - solo ADMIN
 

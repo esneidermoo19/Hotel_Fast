@@ -11,6 +11,10 @@ class DashboardResumen {
     required this.habitacionesOcupadas,
     required this.habitacionesEnMantenimiento,
     required this.cuentasConSaldoPendiente,
+    required this.tasaOcupacion,
+    required this.ingresosDelDia,
+    required this.revpar,
+    required this.balanceCaja,
   });
 
   final int reservasActivas;
@@ -21,6 +25,10 @@ class DashboardResumen {
   final int habitacionesOcupadas;
   final int habitacionesEnMantenimiento;
   final int cuentasConSaldoPendiente;
+  final double tasaOcupacion;
+  final double ingresosDelDia;
+  final double revpar;
+  final double balanceCaja;
 
   factory DashboardResumen.fromJson(Map<String, dynamic> json) {
     return DashboardResumen(
@@ -35,6 +43,10 @@ class DashboardResumen {
           leerEntero(json['habitacionesEnMantenimiento']) ?? 0,
       cuentasConSaldoPendiente:
           leerEntero(json['cuentasConSaldoPendiente']) ?? 0,
+      tasaOcupacion: leerDecimal(json['tasaOcupacion']) ?? 0,
+      ingresosDelDia: leerDecimal(json['ingresosDelDia']) ?? 0,
+      revpar: leerDecimal(json['revpar']) ?? 0,
+      balanceCaja: leerDecimal(json['balanceCaja']) ?? 0,
     );
   }
 }

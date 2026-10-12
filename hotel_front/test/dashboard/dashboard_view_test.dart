@@ -24,6 +24,10 @@ String _dashboardJson() {
     'habitacionesOcupadas': 4,
     'habitacionesEnMantenimiento': 2,
     'cuentasConSaldoPendiente': 3,
+    'tasaOcupacion': 28.6,
+    'ingresosDelDia': 123450.5,
+    'revpar': 8817.89,
+    'balanceCaja': 450000.0,
   });
 }
 
@@ -39,6 +43,10 @@ void main() {
     expect(find.text('Resumen operativo'), findsOneWidget);
     expect(find.text('Habitaciones ocupadas'), findsOneWidget);
     expect(find.text('Habitaciones disponibles'), findsOneWidget);
+    expect(find.text('Ocupación'), findsOneWidget);
+    expect(find.text('Ingresos del día'), findsOneWidget);
+    expect(find.text('RevPAR'), findsOneWidget);
+    expect(find.text('Balance de caja'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
   });
 

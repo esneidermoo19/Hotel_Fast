@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../support/auth_test_utils.dart';
 
 void main() {
-  test('cargar parsea los ocho indicadores', () async {
+  test('cargar parsea los indicadores', () async {
     final servicio = DashboardService(
       crearApiSimulada(
         (request) async => http.Response(
@@ -20,6 +20,10 @@ void main() {
             'habitacionesOcupadas': 4,
             'habitacionesEnMantenimiento': 2,
             'cuentasConSaldoPendiente': 3,
+            'tasaOcupacion': 28.6,
+            'ingresosDelDia': 123450.5,
+            'revpar': 8817.89,
+            'balanceCaja': 450000.0,
           }),
           200,
         ),
@@ -32,6 +36,10 @@ void main() {
     expect(resumen.habitacionesOcupadas, 4);
     expect(resumen.habitacionesDisponibles, 10);
     expect(resumen.cuentasConSaldoPendiente, 3);
+    expect(resumen.tasaOcupacion, 28.6);
+    expect(resumen.ingresosDelDia, 123450.5);
+    expect(resumen.revpar, 8817.89);
+    expect(resumen.balanceCaja, 450000.0);
   });
 
   test('los campos faltantes quedan en cero', () async {
