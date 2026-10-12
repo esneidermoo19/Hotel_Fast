@@ -4,7 +4,7 @@ import pytest
 from conftest import TestingSessionLocal
 from fastapi.testclient import TestClient
 
-from app.models import EstadoReserva
+from app.models import Consumo, EstadoReserva
 from app.schemas.consumo import ConsumoAnular
 from tests.factories import (
     crear_consumo,
@@ -329,6 +329,48 @@ class TestConsumos:
         assert data["anuladoPor"] is not None
         assert data["anuladoEn"] is not None
         assert data["motivoAnulacion"] == "Error en registro"
+
+    def test_anular_consumo_persiste_auditoria(
+        self,
+        client: TestClient,
+        admin_headers: dict[str, str],
+        admin_user,
+    ) -> None:
+        db = TestingSessionLocal()
+        try:
+            usuario, habitacion, huesped, reserva = _setup_reserva_con_estado(
+                db, EstadoReserva.CHECK_IN, "_anular_persist"
+            )
+            reserva_id = reserva.id
+            consumo = crear_consumo(
+                db,
+                reserva=reserva,
+                usuario=usuario,
+                descripcion="Para anular",
+                cantidad=1,
+                precio_unitario=Decimal("15000.00"),
+            )
+            consumo_id = consumo.id
+        finally:
+            db.close()
+
+        response = client.post(
+            f"/api/reservas/{reserva_id}/consumos/{consumo_id}/anular",
+            json=anular_payload("Error en registro"),
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+
+        # La auditoria de la anulacion queda persistida en la base.
+        db = TestingSessionLocal()
+        try:
+            persistido = db.get(Consumo, consumo_id)
+            assert persistido is not None
+            assert persistido.anulado_por == admin_user.id
+            assert persistido.anulado_en is not None
+            assert persistido.motivo_anulacion == "Error en registro"
+        finally:
+            db.close()
 
     def test_anular_consumo_dos_veces_conflicto(
         self, client: TestClient, admin_headers: dict[str, str]

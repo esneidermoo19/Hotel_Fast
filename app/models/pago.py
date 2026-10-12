@@ -39,6 +39,12 @@ class Pago(Base):
     referencia: Mapped[str | None] = mapped_column(String(100), nullable=True)
     anulado: Mapped[bool] = mapped_column(default=False, nullable=False)
     motivo_anulacion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anulado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    anulado_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     fecha_pago: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
