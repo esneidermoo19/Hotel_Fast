@@ -74,3 +74,45 @@ def test_cors_allow_credentials_segun_comodin() -> None:
         ).cors_allow_credentials
         is True
     )
+
+
+def test_cors_origins_json_invalido_se_separa_por_comas() -> None:
+    configurado = Settings(
+        environment="development",
+        cors_origins="[https://a.ttr.lat, https://b.ttr.lat]",
+    )
+
+    assert configurado.cors_origins == ["https://a.ttr.lat", "https://b.ttr.lat"]
+
+
+def test_produccion_exige_database_url() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            secret_key="clave-segura-de-pruebas-con-longitud-1234",
+            database_url=None,
+        )
+
+
+def test_produccion_rechaza_clave_con_marcador() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            secret_key="REPLACE_WITH-una-clave-larga-suficiente-123456",
+            database_url="postgresql+psycopg://u:p@h:5432/db",
+        )
+
+
+def test_produccion_rechaza_clave_corta() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            secret_key="corta",
+            database_url="postgresql+psycopg://u:p@h:5432/db",
+        )
+
+
+def test_resolved_database_url_usa_sqlite_por_defecto() -> None:
+    configurado = Settings(environment="development", database_url=None)
+
+    assert configurado.resolved_database_url == "sqlite:///./hotel_pms.db"
