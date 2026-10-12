@@ -263,6 +263,25 @@ def test_actualizar_usuario_cambia_campos(
     assert response.json()["role"] == "ADMIN"
 
 
+def test_actualizar_usuario_cambia_username_y_email(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    recepcion_user: Usuario,
+) -> None:
+    response = client.put(
+        f"/api/usuarios/{recepcion_user.id}",
+        json={
+            "username": "recepcion.nueva",
+            "email": "recepcion.nueva@example.com",
+        },
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "recepcion.nueva"
+    assert response.json()["email"] == "recepcion.nueva@example.com"
+
+
 def test_actualizar_usuario_inexistente_devuelve_404(
     client: TestClient,
     admin_headers: dict[str, str],
