@@ -5,12 +5,11 @@ import '../catalogos/catalogos_service.dart';
 import '../core/network/api_exception.dart';
 import '../shared/models/pagina.dart';
 import '../shared/utils/formato.dart';
+import '../theme/app_theme.dart';
 import '../widgets/aviso_error.dart';
 import '../widgets/barra_paginacion.dart';
 import '../widgets/esqueleto.dart';
 import '../widgets/estado_vacio.dart';
-import '../widgets/pastilla_estado.dart';
-import '../widgets/tarjeta_hover.dart';
 import 'models/usuario_payload.dart';
 import 'usuarios_service.dart';
 
@@ -231,19 +230,46 @@ class _UsuariosViewState extends State<UsuariosView> {
               return Column(
                 children: [
                   Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      itemCount: pagina.items.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, indice) {
-                        final usuario = pagina.items[indice];
-                        return _FilaUsuario(
-                          usuario: usuario,
-                          alEditar: () => _abrirEditar(usuario),
-                          alCambiarEstado: () => _cambiarEstado(usuario),
-                          alEliminar: () => _eliminar(usuario),
-                        );
-                      },
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                        child: DataTable(
+                          columnSpacing: 28,
+                          headingRowHeight: 48,
+                          dataRowMinHeight: 60,
+                          dataRowMaxHeight: 68,
+                          columns: const [
+                            DataColumn(label: Text('Usuario')),
+                            DataColumn(label: Text('Nombre')),
+                            DataColumn(label: Text('Rol')),
+                            DataColumn(label: Text('Activo')),
+                            DataColumn(label: Text('')),
+                          ],
+                          rows: [
+                            for (final usuario in pagina.items)
+                              DataRow(
+                                cells: [
+                                  DataCell(_CeldaUsuario(usuario: usuario)),
+                                  DataCell(_CeldaNombre(usuario: usuario)),
+                                  DataCell(_InsigniaRol(role: usuario.role)),
+                                  DataCell(
+                                    Switch(
+                                      value: usuario.activo,
+                                      onChanged: (_) => _cambiarEstado(usuario),
+                                    ),
+                                  ),
+                                  DataCell(
+                                    _MenuAcciones(
+                                      alEditar: () => _abrirEditar(usuario),
+                                      alEliminar: () => _eliminar(usuario),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                   BarraPaginacion(
@@ -270,64 +296,126 @@ class _UsuariosViewState extends State<UsuariosView> {
   }
 }
 
-class _FilaUsuario extends StatelessWidget {
-  const _FilaUsuario({
-    required this.usuario,
-    required this.alEditar,
-    required this.alCambiarEstado,
-    required this.alEliminar,
-  });
+/// Celda de usuario: avatar con inicial + username.
+class _CeldaUsuario extends StatelessWidget {
+  const _CeldaUsuario({required this.usuario});
 
   final Usuario usuario;
+
+  @override
+  Widget build(BuildContext context) {
+    final colores = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CircleAvatar(
+          radius: 16,
+          backgroundColor: colores.primaryContainer,
+          child: Text(
+            usuario.username.isEmpty ? '?' : usuario.username[0].toUpperCase(),
+            style: TextStyle(
+              color: colores.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          usuario.username,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+}
+
+/// Celda de nombre con el correo como linea secundaria.
+class _CeldaNombre extends StatelessWidget {
+  const _CeldaNombre({required this.usuario});
+
+  final Usuario usuario;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(usuario.nombre),
+        Text(
+          usuario.email,
+          style: tema.textTheme.bodySmall?.copyWith(
+            color: tema.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Insignia de rol: `ADMIN` en oro, `RECEPCION` en azul.
+class _InsigniaRol extends StatelessWidget {
+  const _InsigniaRol({required this.role});
+
+  final String role;
+
+  (Color fondo, Color texto) get _paleta => switch (role) {
+    'ADMIN' => (AppTheme.oroClaro, AppTheme.midnight),
+    'RECEPCION' => (const Color(0xFFEFF6FF), const Color(0xFF1D4ED8)),
+    _ => (const Color(0xFFF1F5F9), const Color(0xFF475569)),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final (fondo, texto) = _paleta;
+    final etiqueta = switch (role) {
+      'ADMIN' => 'Administrador',
+      'RECEPCION' => 'Recepción',
+      _ => humanizar(role),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: fondo,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: texto.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        etiqueta,
+        style: TextStyle(
+          color: texto,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          height: 1,
+        ),
+      ),
+    );
+  }
+}
+
+class _MenuAcciones extends StatelessWidget {
+  const _MenuAcciones({required this.alEditar, required this.alEliminar});
+
   final VoidCallback alEditar;
-  final VoidCallback alCambiarEstado;
   final VoidCallback alEliminar;
 
   @override
   Widget build(BuildContext context) {
-    return TarjetaHover(
-      child: ListTile(
-        leading: CircleAvatar(
-          child: Text(
-            usuario.username.isEmpty ? '?' : usuario.username[0].toUpperCase(),
-          ),
-        ),
-        title: Text(usuario.username),
-        subtitle: Text(
-          '${usuario.nombre} · ${usuario.email} · '
-          '${humanizar(usuario.role)}',
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PastillaEstado(
-              estado: usuario.activo ? 'ACTIVO' : 'INACTIVO',
-              texto: usuario.activo ? 'ACTIVO' : 'INACTIVO',
-            ),
-            PopupMenuButton<String>(
-              tooltip: 'Acciones',
-              onSelected: (accion) {
-                switch (accion) {
-                  case 'estado':
-                    alCambiarEstado();
-                  case 'editar':
-                    alEditar();
-                  case 'eliminar':
-                    alEliminar();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'estado',
-                  child: Text(usuario.activo ? 'Desactivar' : 'Reactivar'),
-                ),
-                const PopupMenuItem(value: 'editar', child: Text('Editar')),
-                const PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return PopupMenuButton<String>(
+      tooltip: 'Acciones',
+      onSelected: (accion) {
+        switch (accion) {
+          case 'editar':
+            alEditar();
+          case 'eliminar':
+            alEliminar();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(value: 'editar', child: Text('Editar')),
+        PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+      ],
     );
   }
 }
