@@ -91,3 +91,5 @@ jobs:
         run: flutter analyze
       - name: Pruebas
         run: flutter test
+      - name: Build web
+        run: flutter build web --release
