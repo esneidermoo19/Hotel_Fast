@@ -71,7 +71,8 @@ void main() {
 
     expect(find.text('admin'), findsOneWidget);
     expect(find.text('recepcion'), findsOneWidget);
-    expect(find.text('ACTIVO'), findsNWidgets(2));
+    expect(find.text('Administrador'), findsNWidgets(2));
+    expect(find.byType(Switch), findsNWidgets(2));
   });
 
   testWidgets('el filtro solo activos se envia correctamente', (tester) async {
