@@ -22,14 +22,3 @@ disable_error_code = ["return-value"]
 [[tool.mypy.overrides]]
 module = "app.schemas.*"
 disable_error_code = ["prop-decorator"]
-
-# Los modelos Pago y Consumo todavia no tienen columnas anulado_por/anulado_en
-# (ni Consumo.motivo_anulacion); los servicios las asignan igual. Pendiente de
-# una migracion que agregue esas columnas.
-[[tool.mypy.overrides]]
-module = "app.services.pago_service"
-disable_error_code = ["attr-defined"]
-
-[[tool.mypy.overrides]]
-module = "app.services.consumo_service"
-disable_error_code = ["attr-defined"]
