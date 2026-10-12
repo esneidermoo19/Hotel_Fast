@@ -4,7 +4,7 @@ import pytest
 from conftest import TestingSessionLocal
 from fastapi.testclient import TestClient
 
-from app.models import EstadoReserva
+from app.models import EstadoReserva, Pago
 from app.models.enums import MetodoPago, TipoPago
 from app.schemas.pago import PagoAnular
 from tests.factories import (
@@ -363,6 +363,47 @@ class TestPagos:
         assert data["anuladoPor"] is not None
         assert data["anuladoEn"] is not None
         assert data["motivoAnulacion"] == "Pago duplicado"
+
+    def test_anular_pago_persiste_auditoria(
+        self,
+        client: TestClient,
+        admin_headers: dict[str, str],
+        admin_user,
+    ) -> None:
+        db = TestingSessionLocal()
+        try:
+            usuario, habitacion, huesped, reserva = _setup_reserva_con_estado(
+                db, EstadoReserva.CHECK_IN, "_anular_persist"
+            )
+            reserva_id = reserva.id
+            pago = crear_pago(
+                db,
+                reserva=reserva,
+                usuario=usuario,
+                monto=Decimal("50000.00"),
+            )
+            pago_id = pago.id
+        finally:
+            db.close()
+
+        response = client.post(
+            f"/api/reservas/{reserva_id}/pagos/{pago_id}/anular",
+            json=anular_payload("Duplicado"),
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+
+        # La auditoria de la anulacion queda persistida en la base (no solo en
+        # el objeto en memoria).
+        db = TestingSessionLocal()
+        try:
+            persistido = db.get(Pago, pago_id)
+            assert persistido is not None
+            assert persistido.anulado_por == admin_user.id
+            assert persistido.anulado_en is not None
+            assert persistido.motivo_anulacion == "Duplicado"
+        finally:
+            db.close()
 
     def test_anular_pago_dos_veces_conflicto(
         self, client: TestClient, admin_headers: dict[str, str]

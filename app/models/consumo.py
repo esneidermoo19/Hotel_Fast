@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -22,6 +22,13 @@ class Consumo(Base):
     cantidad: Mapped[int] = mapped_column(nullable=False)
     precio_unitario: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     anulado: Mapped[bool] = mapped_column(default=False, nullable=False)
+    motivo_anulacion: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anulado_por: Mapped[int | None] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True
+    )
+    anulado_en: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     registrado_por: Mapped[int] = mapped_column(
         ForeignKey("usuarios.id", ondelete="RESTRICT"), nullable=False
     )
