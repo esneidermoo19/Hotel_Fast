@@ -1,0 +1,22 @@
+# Hooks de pre-commit para Hotel_Fast.
+#
+# - ruff: lint (con autofix) del backend Python.
+# - dart format: formatea el frontend Flutter.
+#
+# Nota: no se incluye `ruff-format` todavia. El backend aun no esta formateado
+# con esa herramienta (reformatearia decenas de archivos) y la version instalada
+# paniquea sobre app/services. Adoptarlo requiere un PR de formateo aparte.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+
+  - repo: local
+    hooks:
+      - id: dart-format
+        name: dart format (frontend)
+        entry: dart format
+        language: system
+        files: ^hotel_front/.*\.dart$
