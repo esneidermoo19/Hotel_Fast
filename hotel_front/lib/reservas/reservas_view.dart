@@ -667,6 +667,17 @@ class _DialogoNuevaReservaState extends State<_DialogoNuevaReserva> {
   ReservaHabitacion? _habitacion;
   bool _creando = false;
   String? _error;
+  int _paso = 0;
+
+  int get _noches {
+    if (_entrada == null || _salida == null) return 0;
+    final noches = _salida!.difference(_entrada!).inDays;
+    return noches > 0 ? noches : 0;
+  }
+
+  double get _subtotal => (_habitacion?.precioPorNoche ?? 0) * _noches;
+
+  double get _saldo => _subtotal;
 
   @override
   void dispose() {
@@ -801,148 +812,290 @@ class _DialogoNuevaReservaState extends State<_DialogoNuevaReserva> {
     setState(() => _error = mensaje);
   }
 
+  bool _validarPasoActual() {
+    if (_paso == 0) {
+      if (_entrada == null || _salida == null) {
+        _setError('Selecciona las fechas de la estancia');
+        return false;
+      }
+      if (!_salida!.isAfter(_entrada!)) {
+        _setError('Check-out debe ser posterior a check-in');
+        return false;
+      }
+      if (_habitacion == null) {
+        _setError('Selecciona una habitacion disponible');
+        return false;
+      }
+    } else if (_paso == 1) {
+      if (_huesped == null) {
+        _setError('Selecciona el huesped');
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _continuar() {
+    if (!_validarPasoActual()) return;
+    setState(() {
+      _error = null;
+      _paso += 1;
+    });
+  }
+
+  void _retroceder() {
+    setState(() {
+      _error = null;
+      _paso -= 1;
+    });
+  }
+
+  void _enviar() {
+    if (_paso < 2) {
+      _continuar();
+    } else {
+      _crear();
+    }
+  }
+
+  void _cancelar() {
+    if (_paso == 0) {
+      Navigator.of(context).pop(false);
+    } else {
+      _retroceder();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final puedeCrear = _huesped != null && _habitacion != null;
     return AlertDialog(
       title: const Text('Nueva reserva'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _BotonFecha(
-              etiqueta: 'Check-in',
-              fecha: _entrada,
-              alPulsar: () => _elegirFecha(true),
+      content: SizedBox(
+        width: 560,
+        child: Stepper(
+          type: StepperType.vertical,
+          currentStep: _paso,
+          onStepTapped: (paso) => setState(() => _paso = paso),
+          onStepContinue: _enviar,
+          onStepCancel: _cancelar,
+          controlsBuilder: (_, _) => const SizedBox.shrink(),
+          steps: [
+            Step(
+              title: const Text('Fechas y disponibilidad'),
+              isActive: _paso >= 0,
+              content: _contenidoFechas(),
             ),
-            const SizedBox(height: 8),
-            _BotonFecha(
-              etiqueta: 'Check-out',
-              fecha: _salida,
-              alPulsar: () => _elegirFecha(false),
+            Step(
+              title: const Text('Cliente'),
+              isActive: _paso >= 1,
+              content: _contenidoCliente(),
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _numeroHuespedes,
-              decoration: const InputDecoration(
-                labelText: 'Número de huéspedes',
-              ),
-              keyboardType: TextInputType.number,
+            Step(
+              title: const Text('Resumen'),
+              isActive: _paso >= 2,
+              content: _contenidoResumen(),
             ),
-            const Divider(height: 24),
-            Text('Huésped', style: Theme.of(context).textTheme.titleSmall),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _busquedaHuesped,
-                    decoration: const InputDecoration(
-                      hintText: 'Buscar por nombre o documento',
-                    ),
-                    onSubmitted: (_) => _buscarHuesped(),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Buscar',
-                  icon: const Icon(Icons.search),
-                  onPressed: _buscarHuesped,
-                ),
-              ],
-            ),
-            if (_buscandoHuesped)
-              const Padding(
-                padding: EdgeInsets.all(8),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            if (_resultados != null)
-              Column(
-                children: [
-                  for (final huesped in _resultados!)
-                    ListTile(
-                      dense: true,
-                      selected: _huesped?.id == huesped.id,
-                      title: Text(huesped.nombreCompleto),
-                      subtitle: Text(huesped.documento),
-                      trailing: _huesped?.id == huesped.id
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () => setState(() => _huesped = huesped),
-                    ),
-                ],
-              ),
-            if (_huesped != null)
-              Text(
-                'Seleccionado: ${_huesped!.nombreCompleto}',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-            const Divider(height: 24),
-            Text('Habitación', style: Theme.of(context).textTheme.titleSmall),
-            FilledButton.tonalIcon(
-              onPressed: (_entrada != null && _salida != null)
-                  ? _consultarDisponibilidad
-                  : null,
-              icon: _consultando
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.search),
-              label: const Text('Ver disponibilidad'),
-            ),
-            if (_disponibles != null && _disponibles!.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('No hay habitaciones disponibles para el rango.'),
-              ),
-            if (_disponibles != null && _disponibles!.isNotEmpty)
-              Column(
-                children: [
-                  for (final habitacion in _disponibles!)
-                    ListTile(
-                      dense: true,
-                      selected: _habitacion?.id == habitacion.id,
-                      title: Text(
-                        'Hab. ${habitacion.numero} · '
-                        '${humanizar(habitacion.tipo)}',
-                      ),
-                      subtitle: Text(
-                        'Capacidad ${habitacion.capacidad} · '
-                        '${formatearMonto(habitacion.precioPorNoche)}',
-                      ),
-                      trailing: _habitacion?.id == habitacion.id
-                          ? const Icon(Icons.check)
-                          : null,
-                      onTap: () => setState(() => _habitacion = habitacion),
-                    ),
-                ],
-              ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: _creando ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancelar'),
+          onPressed: _creando ? null : _cancelar,
+          child: Text(_paso == 0 ? 'Cancelar' : 'Atrás'),
         ),
         FilledButton(
-          onPressed: _creando || !puedeCrear ? null : _crear,
+          onPressed: _creando ? null : _enviar,
           child: _creando
               ? const SizedBox(
                   height: 20,
                   width: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Crear reserva'),
+              : Text(_paso < 2 ? 'Continuar' : 'Crear reserva'),
         ),
+      ],
+    );
+  }
+
+  Widget _contenidoFechas() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BotonFecha(
+          etiqueta: 'Check-in',
+          fecha: _entrada,
+          alPulsar: () => _elegirFecha(true),
+        ),
+        const SizedBox(height: 8),
+        _BotonFecha(
+          etiqueta: 'Check-out',
+          fecha: _salida,
+          alPulsar: () => _elegirFecha(false),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _numeroHuespedes,
+          decoration: const InputDecoration(labelText: 'Número de huéspedes'),
+          keyboardType: TextInputType.number,
+        ),
+        const SizedBox(height: 8),
+        FilledButton.tonalIcon(
+          onPressed: (_entrada != null && _salida != null)
+              ? _consultarDisponibilidad
+              : null,
+          icon: _consultando
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.search),
+          label: const Text('Ver disponibilidad'),
+        ),
+        if (_disponibles != null && _disponibles!.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text('No hay habitaciones disponibles para el rango.'),
+          ),
+        if (_disponibles != null && _disponibles!.isNotEmpty)
+          Column(
+            children: [
+              for (final habitacion in _disponibles!)
+                ListTile(
+                  dense: true,
+                  selected: _habitacion?.id == habitacion.id,
+                  title: Text(
+                    'Hab. ${habitacion.numero} · '
+                    '${humanizar(habitacion.tipo)}',
+                  ),
+                  subtitle: Text(
+                    'Capacidad ${habitacion.capacidad} · '
+                    '${formatearMonto(habitacion.precioPorNoche)}',
+                  ),
+                  trailing: _habitacion?.id == habitacion.id
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => setState(() => _habitacion = habitacion),
+                ),
+            ],
+          ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _contenidoCliente() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _busquedaHuesped,
+                decoration: const InputDecoration(
+                  hintText: 'Buscar por nombre o documento',
+                ),
+                onSubmitted: (_) => _buscarHuesped(),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Buscar',
+              icon: const Icon(Icons.search),
+              onPressed: _buscarHuesped,
+            ),
+          ],
+        ),
+        if (_buscandoHuesped)
+          const Padding(
+            padding: EdgeInsets.all(8),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        if (_resultados != null)
+          Column(
+            children: [
+              for (final huesped in _resultados!)
+                ListTile(
+                  dense: true,
+                  selected: _huesped?.id == huesped.id,
+                  title: Text(huesped.nombreCompleto),
+                  subtitle: Text(huesped.documento),
+                  trailing: _huesped?.id == huesped.id
+                      ? const Icon(Icons.check)
+                      : null,
+                  onTap: () => setState(() => _huesped = huesped),
+                ),
+            ],
+          ),
+        if (_huesped != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Seleccionado: ${_huesped!.nombreCompleto}',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+          ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _contenidoResumen() {
+    final huesped = _huesped;
+    final habitacion = _habitacion;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Resumen financiero',
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+        const SizedBox(height: 12),
+        _FilaDetalle(
+          etiqueta: 'Huésped',
+          valor: huesped?.nombreCompleto ?? '-',
+        ),
+        _FilaDetalle(
+          etiqueta: 'Habitación',
+          valor: habitacion == null
+              ? '-'
+              : '#${habitacion.numero} · ${humanizar(habitacion.tipo)}',
+        ),
+        _FilaDetalle(
+          etiqueta: 'Check-in',
+          valor: _entrada == null ? '-' : formatearFecha(_entrada!),
+        ),
+        _FilaDetalle(
+          etiqueta: 'Check-out',
+          valor: _salida == null ? '-' : formatearFecha(_salida!),
+        ),
+        _FilaDetalle(etiqueta: 'Noches', valor: '$_noches'),
+        const Divider(height: 24),
+        _FilaEconomica('Subtotal', _subtotal),
+        _FilaEconomica('Anticipo', 0),
+        _FilaEconomica('Saldo restante', _saldo),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ],
       ],
     );
   }
