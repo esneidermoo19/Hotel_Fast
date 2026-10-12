@@ -71,3 +71,16 @@ jobs:
       - run: python -m alembic check
       - run: python -m alembic downgrade base
       - run: python -m alembic upgrade head
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: python -m pip install --upgrade pip
+      - run: pip install pip-audit
+      - name: Auditar dependencias de Python
+        run: pip-audit -r requirements.txt
