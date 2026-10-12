@@ -8,3 +8,20 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 addopts = "--cov=app --cov-report=term-missing --cov-fail-under=90"
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+# Los routers anotan el schema de respuesta pero devuelven el modelo ORM;
+# FastAPI serializa con `response_model`, asi que ese patron es correcto.
+[[tool.mypy.overrides]]
+module = "app.routers.*"
+disable_error_code = ["return-value"]
+
+# `@computed_field` sobre `@property` es el patron de Pydantic v2; mypy aun no
+# lo soporta y reporta prop-decorator.
+[[tool.mypy.overrides]]
+module = "app.schemas.*"
+disable_error_code = ["prop-decorator"]

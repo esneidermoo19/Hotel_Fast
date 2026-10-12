@@ -29,9 +29,9 @@ class Pagina[T](CamelCaseSchema):
 
 
 def paginar_consulta[T](
-    consulta: Select[tuple[T]],
+    consulta: Select[T],
     *,
     pagina: int,
     tamano: int,
-) -> Select[tuple[T]]:
+) -> Select[T]:
     return consulta.offset((pagina - 1) * tamano).limit(tamano)

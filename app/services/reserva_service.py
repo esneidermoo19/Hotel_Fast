@@ -795,7 +795,7 @@ def _cambiar_estado_y_auditar(
     )
 
     db.refresh(reserva)
-    huesped = db.get(Huesped, reserva.huesped_id)
+    huesped = db.get_one(Huesped, reserva.huesped_id)
     return _armar_lectura(reserva, huesped, habitacion)
 
 
@@ -1000,7 +1000,7 @@ def check_in_reserva(
 
     db.refresh(reserva)
     db.refresh(habitacion)
-    huesped = db.get(Huesped, reserva.huesped_id)
+    huesped = db.get_one(Huesped, reserva.huesped_id)
     return _armar_lectura(reserva, huesped, habitacion)
 
 
@@ -1085,7 +1085,7 @@ def check_out_reserva(
 
     db.refresh(reserva)
     db.refresh(habitacion)
-    huesped = db.get(Huesped, reserva.huesped_id)
+    huesped = db.get_one(Huesped, reserva.huesped_id)
     lectura = _armar_lectura(reserva, huesped, habitacion)
     return _con_resultado_economico(db, lectura)
 
@@ -1166,5 +1166,5 @@ def extender_reserva(
     )
 
     db.refresh(reserva)
-    huesped = db.get(Huesped, reserva.huesped_id)
+    huesped = db.get_one(Huesped, reserva.huesped_id)
     return _armar_lectura(reserva, huesped, habitacion)

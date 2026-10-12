@@ -20,6 +20,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: python -m app.export_openapi
       - run: ruff check .
+      - run: python -m mypy app
       - run: python -m pytest
       - uses: actions/upload-artifact@v4
         if: always()
