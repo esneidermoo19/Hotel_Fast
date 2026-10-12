@@ -25,12 +25,13 @@ const _catalogosJson = [
 String _habitacionJson({
   int id = 1,
   int numero = 101,
+  int piso = 1,
   String estado = 'DISPONIBLE',
 }) {
   return jsonEncode({
     'id': id,
     'numero': numero,
-    'piso': 1,
+    'piso': piso,
     'tipo': 'DOBLE',
     'capacidad': 2,
     'precioPorNoche': 120.5,
@@ -86,6 +87,34 @@ void main() {
     expect(find.text('#101'), findsOneWidget);
     expect(find.text('#102'), findsOneWidget);
     expect(find.text('Habitaciones'), findsOneWidget);
+  });
+
+  testWidgets('agrupa las habitaciones por piso', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final servicio = HabitacionesService(
+      crearApiSimulada(
+        (request) async => http.Response(
+          jsonEncode([
+            jsonDecode(_habitacionJson(numero: 101, piso: 1)),
+            jsonDecode(_habitacionJson(id: 2, numero: 102, piso: 1)),
+            jsonDecode(_habitacionJson(id: 3, numero: 201, piso: 2)),
+          ]),
+          200,
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(_envoltura(servicio, await _catalogosCargados()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Piso 1'), findsOneWidget);
+    expect(find.text('Piso 2'), findsOneWidget);
+    expect(find.text('2 habitaciones'), findsOneWidget);
+    expect(find.text('1 habitación'), findsOneWidget);
   });
 
   testWidgets('muestra error y boton de reintentar', (tester) async {
