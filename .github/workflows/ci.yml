@@ -101,3 +101,24 @@ jobs:
           if-no-files-found: ignore
       - name: Build web
         run: flutter build web --release
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: python -m pip install --upgrade pip
+      - run: pip install pip-audit bandit
+      - name: Auditar dependencias de Python
+        run: pip-audit -r requirements.txt
+      - name: Analizar seguridad del codigo
+        run: bandit -r app -ll
+      - name: Escanear secretos (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
