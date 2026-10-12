@@ -903,6 +903,74 @@ def test_editar_capacidad_excedida(
     assert response.json()["code"] == "CAPACIDAD_EXCEDIDA"
 
 
+def test_editar_rango_de_fechas_invalido(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    huesped = crear_huesped(db_session)
+    reserva, _, _, _ = _crear(db=db_session, numero=812, huesped=huesped)
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"fechaSalida": HOY.isoformat()},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RANGO_FECHAS_INVALIDO"
+
+
+def test_editar_huesped_inexistente(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    huesped = crear_huesped(db_session)
+    reserva, _, _, _ = _crear(db=db_session, numero=813, huesped=huesped)
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"huespedId": 9999},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "HUESPED_NO_ENCONTRADO"
+
+
+def test_editar_a_habitacion_en_mantenimiento(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    huesped = crear_huesped(db_session)
+    reserva, _, _, _ = _crear(db=db_session, numero=814, huesped=huesped)
+    inactiva = crear_habitacion(
+        db_session, numero=815, estado=EstadoHabitacion.MANTENIMIENTO
+    )
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"habitacionId": inactiva.id},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "HABITACION_INACTIVA"
+
+
+def test_editar_cambia_de_huesped(
+    client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
+) -> None:
+    original = crear_huesped(db_session, numero_documento="1234567890")
+    nuevo = crear_huesped(db_session, numero_documento="9876543210")
+    reserva, _, _, _ = _crear(db=db_session, numero=816, huesped=original)
+
+    response = client.put(
+        f"/api/reservas/{reserva.id}",
+        json={"huespedId": nuevo.id},
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["huesped"]["id"] == nuevo.id
+
+
 def test_editar_entrada_en_el_pasado(
     client: TestClient, admin_headers: dict[str, str], db_session: Session, hoy_fijo
 ) -> None:
