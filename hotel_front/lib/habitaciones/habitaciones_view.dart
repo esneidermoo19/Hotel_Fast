@@ -296,35 +296,57 @@ class _HabitacionesViewState extends State<HabitacionesView> {
                   mensaje: 'No hay habitaciones.',
                 );
               }
-              return GridView.builder(
-                padding: const EdgeInsets.all(24),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 360,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.78,
-                ),
-                itemCount: habitaciones.length,
-                itemBuilder: (context, index) {
-                  final habitacion = habitaciones[index];
-                  return _TarjetaHabitacion(
-                    habitacion: habitacion,
-                    estados: estados,
-                    esAdmin: widget.esAdmin,
-                    resolverUrl: widget.service.resolverUrlMedia,
-                    alCambiarEstado: (valor) =>
-                        _cambiarEstado(habitacion, valor),
-                    alCambiarLimpieza: (valor) =>
-                        _cambiarLimpieza(habitacion, valor),
-                    alEditar: () => _abrirFormulario(habitacion),
-                    alEliminar: () => _eliminar(habitacion),
-                    alAbrirDetalle: () => _abrirDetalle(habitacion),
-                  );
-                },
-              );
+              return _rejillaPorPisos(habitaciones, estados);
             },
           ),
         ),
+      ],
+    );
+  }
+
+  /// Rejilla del room rack: agrupa las habitaciones por piso, con encabezado
+  /// por piso y orden ascendente de numero dentro de cada uno.
+  Widget _rejillaPorPisos(List<Habitacion> habitaciones, List<String> estados) {
+    final porPiso = <int, List<Habitacion>>{};
+    for (final habitacion in habitaciones) {
+      porPiso.putIfAbsent(habitacion.piso, () => []).add(habitacion);
+    }
+    final pisos = porPiso.keys.toList()..sort();
+
+    return CustomScrollView(
+      slivers: [
+        for (final piso in pisos) ...[
+          SliverToBoxAdapter(
+            child: _EncabezadoPiso(piso: piso, habitaciones: porPiso[piso]!),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 360,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.78,
+              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                final habitacion = porPiso[piso]![index];
+                return _TarjetaHabitacion(
+                  habitacion: habitacion,
+                  estados: estados,
+                  esAdmin: widget.esAdmin,
+                  resolverUrl: widget.service.resolverUrlMedia,
+                  alCambiarEstado: (valor) => _cambiarEstado(habitacion, valor),
+                  alCambiarLimpieza: (valor) =>
+                      _cambiarLimpieza(habitacion, valor),
+                  alEditar: () => _abrirFormulario(habitacion),
+                  alEliminar: () => _eliminar(habitacion),
+                  alAbrirDetalle: () => _abrirDetalle(habitacion),
+                );
+              }, childCount: porPiso[piso]!.length),
+            ),
+          ),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
@@ -352,6 +374,96 @@ class _HabitacionesViewState extends State<HabitacionesView> {
             selected: actual == opcion,
             onSelected: (_) => alCambiar(opcion),
           ),
+      ],
+    );
+  }
+}
+
+/// Color semantico del estado operativo de una habitacion.
+Color _colorEstado(String estado) => switch (estado) {
+  'DISPONIBLE' => AppTheme.esmeralda,
+  'OCUPADA' => AppTheme.borgona,
+  'MANTENIMIENTO' => const Color(0xFF64748B),
+  _ => AppTheme.ambar,
+};
+
+/// Encabezado de piso del room rack: numero, conteo y resumen de estado.
+class _EncabezadoPiso extends StatelessWidget {
+  const _EncabezadoPiso({required this.piso, required this.habitaciones});
+
+  final int piso;
+  final List<Habitacion> habitaciones;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final ocupadas = habitaciones.where((h) => h.estado == 'OCUPADA').length;
+    final disponibles = habitaciones
+        .where((h) => h.estado == 'DISPONIBLE')
+        .length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 26,
+            decoration: BoxDecoration(
+              color: AppTheme.oro,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text('Piso $piso', style: tema.textTheme.titleMedium),
+          const SizedBox(width: 12),
+          Text(
+            '${habitaciones.length} '
+            '${habitaciones.length == 1 ? 'habitación' : 'habitaciones'}',
+            style: tema.textTheme.bodySmall?.copyWith(
+              color: tema.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const Spacer(),
+          _ConteoEstado(
+            color: AppTheme.esmeralda,
+            valor: disponibles,
+            texto: 'libres',
+          ),
+          const SizedBox(width: 12),
+          _ConteoEstado(
+            color: AppTheme.borgona,
+            valor: ocupadas,
+            texto: 'ocupadas',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConteoEstado extends StatelessWidget {
+  const _ConteoEstado({
+    required this.color,
+    required this.valor,
+    required this.texto,
+  });
+
+  final Color color;
+  final int valor;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text('$valor $texto', style: Theme.of(context).textTheme.bodySmall),
       ],
     );
   }
@@ -440,59 +552,67 @@ class _TarjetaHabitacion extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: alAbrirDetalle,
-        child: Column(
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: _PortadaHabitacion(
-                habitacion: habitacion,
-                resolverUrl: resolverUrl,
-              ),
-            ),
+            Container(width: 6, color: _colorEstado(habitacion.estado)),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${humanizar(habitacion.tipo)} · '
-                            '${habitacion.capacidad} pers.',
-                            style: tema.textTheme.bodyMedium,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        _menuAcciones(),
-                      ],
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: _PortadaHabitacion(
+                      habitacion: habitacion,
+                      resolverUrl: resolverUrl,
                     ),
-                    Text(
-                      '${formatearMonto(habitacion.precioPorNoche)} / noche',
-                      style: tema.textTheme.titleMedium?.copyWith(
-                        color: AppTheme.oro,
-                        fontWeight: FontWeight.w700,
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  '${humanizar(habitacion.tipo)} · '
+                                  '${habitacion.capacidad} pers.',
+                                  style: tema.textTheme.bodyMedium,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              _menuAcciones(),
+                            ],
+                          ),
+                          Text(
+                            '${formatearMonto(habitacion.precioPorNoche)} / noche',
+                            style: tema.textTheme.titleMedium?.copyWith(
+                              color: AppTheme.oro,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.cleaning_services_outlined,
+                                size: 16,
+                                color: tema.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Limpieza: ${humanizar(habitacion.limpieza)}',
+                                style: tema.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.cleaning_services_outlined,
-                          size: 16,
-                          color: tema.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Limpieza: ${humanizar(habitacion.limpieza)}',
-                          style: tema.textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
