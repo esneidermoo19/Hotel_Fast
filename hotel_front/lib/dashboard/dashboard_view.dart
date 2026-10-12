@@ -150,11 +150,6 @@ class _Indicadores extends StatelessWidget {
         ),
       ),
       _Indicador(
-        etiqueta: 'Ocupación',
-        valor: _formatearPorcentaje(resumen.tasaOcupacion),
-        icono: Icons.pie_chart_outline,
-      ),
-      _Indicador(
         etiqueta: 'Ingresos del día',
         valor: formatearMonto(resumen.ingresosDelDia),
         icono: Icons.payments_outlined,
@@ -195,6 +190,10 @@ class _Indicadores extends StatelessWidget {
           ),
         ),
         SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+          sliver: SliverToBoxAdapter(child: _HeroOcupacion(resumen: resumen)),
+        ),
+        SliverPadding(
           padding: const EdgeInsets.all(24),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -215,6 +214,152 @@ class _Indicadores extends StatelessWidget {
 }
 
 String _formatearPorcentaje(double valor) => '${valor.toStringAsFixed(1)}%';
+
+/// Tarjeta destacada con la ocupacion del hotel y su barra de progreso.
+class _HeroOcupacion extends StatelessWidget {
+  const _HeroOcupacion({required this.resumen});
+
+  final DashboardResumen resumen;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final operativas =
+        resumen.habitacionesDisponibles + resumen.habitacionesOcupadas;
+    final fraccion = (resumen.tasaOcupacion / 100).clamp(0.0, 1.0);
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.midnight, AppTheme.midnightClaro],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.midnight.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ocupación',
+                      style: tema.textTheme.titleMedium?.copyWith(
+                        color: AppTheme.oroClaro,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$operativas habitaciones operativas',
+                      style: tema.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                _formatearPorcentaje(resumen.tasaOcupacion),
+                style: tema.textTheme.displaySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: fraccion,
+              minHeight: 12,
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
+              valueColor: const AlwaysStoppedAnimation(AppTheme.oro),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 20,
+            runSpacing: 8,
+            children: [
+              _DatoHero(
+                color: AppTheme.esmeralda,
+                valor: resumen.habitacionesDisponibles,
+                texto: 'disponibles',
+              ),
+              _DatoHero(
+                color: AppTheme.borgona,
+                valor: resumen.habitacionesOcupadas,
+                texto: 'ocupadas',
+              ),
+              _DatoHero(
+                color: AppTheme.ambar,
+                valor: resumen.habitacionesEnMantenimiento,
+                texto: 'mantenimiento',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DatoHero extends StatelessWidget {
+  const _DatoHero({
+    required this.color,
+    required this.valor,
+    required this.texto,
+  });
+
+  final Color color;
+  final int valor;
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          '$valor',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          texto,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.75),
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _TarjetaIndicador extends StatelessWidget {
   const _TarjetaIndicador({required this.datos});

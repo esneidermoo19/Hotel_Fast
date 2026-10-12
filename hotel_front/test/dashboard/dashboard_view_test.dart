@@ -49,10 +49,11 @@ void main() {
     expect(find.text('Habitaciones ocupadas'), findsOneWidget);
     expect(find.text('Habitaciones disponibles'), findsOneWidget);
     expect(find.text('Ocupación'), findsOneWidget);
+    expect(find.text('28.6%'), findsOneWidget);
     expect(find.text('Ingresos del día'), findsOneWidget);
     expect(find.text('RevPAR'), findsOneWidget);
     expect(find.text('Balance de caja'), findsOneWidget);
-    expect(find.text('4'), findsOneWidget);
+    expect(find.text('4'), findsWidgets);
   });
 
   testWidgets('muestra error y boton de reintentar', (tester) async {
