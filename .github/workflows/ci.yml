@@ -98,3 +98,5 @@ jobs:
           name: flutter-coverage
           path: hotel_front/coverage/lcov.info
           if-no-files-found: ignore
+      - name: Build web
+        run: flutter build web --release
