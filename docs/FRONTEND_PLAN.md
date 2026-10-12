@@ -247,12 +247,15 @@ Entregado:
   todas las transiciones de estado (`confirmar`, `cancelar` con `motivo`,
   `no-show`, `check-in`, `check-out`, `extender`).
 - **Vista** (`lib/reservas/reservas_view.dart`): listado paginado con filtro por
-  estado (`ChoiceChip` desde catalogos) y rango de fechas (pickers); dialogo de
-  nueva reserva con busqueda de huesped, consulta de disponibilidad por rango y
-  seleccion de habitacion; ficha/detalle con acciones contextuales por estado
-  (`PENDIENTE`: Confirmar/Cancelar; `CONFIRMADA`: Check-in/No-show/Cancelar;
-  `CHECK_IN`: Check-out/Extender; las de `CHECK_OUT`/`CANCELADA`/`NO_SHOW` se
-  ocultan). El check-out muestra `totalCuenta`/`totalPagado`/`saldoPendiente`.
+  estado (`ChoiceChip` desde catalogos) y rango de fechas (pickers); **wizard de
+  nueva reserva** con `Stepper` de 3 pasos (1: fechas + numero de huespedes +
+  disponibilidad por rango y seleccion de habitacion; 2: busqueda/autocompletado
+  de huesped; 3: resumen financiero tipo recibo con subtotal, anticipo y saldo
+  restante, con la navegacion en las acciones del dialogo); ficha/detalle con
+  acciones contextuales por estado (`PENDIENTE`: Confirmar/Cancelar;
+  `CONFIRMADA`: Check-in/No-show/Cancelar; `CHECK_IN`: Check-out/Extender; las de
+  `CHECK_OUT`/`CANCELADA`/`NO_SHOW` se ocultan). El check-out muestra
+  `totalCuenta`/`totalPagado`/`saldoPendiente`.
 - **Errores en UI**: `detail` del backend en SnackBar para 409
   (`REGLA_NEGOCIO`/`CONFLICTO`) y 422 de las acciones; en el dialogo de creacion
   se muestran los errores por campo de 422 y la validacion local de
@@ -263,7 +266,7 @@ Entregado:
 - **Pruebas** (`test/reservas/`): 11 pruebas del servicio (pagina+filtros,
   disponibilidad, creacion, check-out, cancelar/extender, 409) y de la vista
   (listado, filtro de estado que re-consulta, error+reintentar, acciones del
-  detalle, dialogo de nueva reserva).
+  detalle, wizard de nueva reserva con sus tres pasos y acceso al resumen).
 
 **Criterio de cierre cumplido**: `dart format`, `flutter analyze` (sin issues) y
 `flutter test` (115/115) en verde.

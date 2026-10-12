@@ -191,7 +191,12 @@ void main() {
     expect(find.text('Cancelar'), findsOneWidget);
   });
 
-  testWidgets('abre el dialogo de nueva reserva', (tester) async {
+  testWidgets('abre el wizard de nueva reserva con tres pasos', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final servicio = ReservasService(
       crearApiSimulada((request) async => http.Response(_paginaJson(), 200)),
     );
@@ -201,8 +206,34 @@ void main() {
     await tester.tap(find.text('Nueva reserva'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Crear reserva'), findsOneWidget);
+    expect(find.text('Fechas y disponibilidad'), findsOneWidget);
+    expect(find.text('Cliente'), findsOneWidget);
+    expect(find.text('Resumen'), findsOneWidget);
     expect(find.text('Ver disponibilidad'), findsOneWidget);
+    expect(find.text('Continuar'), findsOneWidget);
+  });
+
+  testWidgets('el resumen se alcanza por el titulo del paso', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final servicio = ReservasService(
+      crearApiSimulada((request) async => http.Response(_paginaJson(), 200)),
+    );
+
+    await tester.pumpWidget(_envoltura(servicio, await _catalogosCargados()));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nueva reserva'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Resumen'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Resumen financiero'), findsOneWidget);
+    expect(find.text('Subtotal'), findsOneWidget);
+    expect(find.text('Crear reserva'), findsOneWidget);
   });
 
   testWidgets('el detalle muestra la cuenta de la reserva', (tester) async {

@@ -1,17 +1,18 @@
-"""Resumen operativo del hotel para el dashboard.
+"""Resumen operativo y financiero del hotel para el dashboard.
 
-Agrupa conteos sobre los modelos existentes (Reserva y Habitacion) y sobre las
-cuentas calculadas por `cuenta_service.calcular_cuenta`. No crea tablas ni
-campos nuevos: todo sale de lo que el dominio ya guarda.
+Agrupa conteos sobre los modelos existentes (Reserva, Habitacion y Pago) y
+sobre las cuentas calculadas por `cuenta_service.calcular_cuenta`. No crea
+tablas ni campos nuevos: todo sale de lo que el dominio ya guarda.
 """
 
-from datetime import date
+from datetime import date, datetime
+from decimal import ROUND_HALF_UP, Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.tiempo import limites_utc_del_dia
-from app.models import EstadoHabitacion, EstadoReserva, Habitacion, Reserva
+from app.models import EstadoHabitacion, EstadoReserva, Habitacion, Pago, Reserva, TipoPago
 from app.schemas.dashboard import DashboardRead
 from app.services.cuenta_service import calcular_cuenta
 from app.services.pago_service import ESTADOS_CON_PAGOS
@@ -23,11 +24,42 @@ PENDIENTES_DE_CHECK_IN: tuple[EstadoReserva, ...] = (
     EstadoReserva.CONFIRMADA,
 )
 
+TWO_DECIMALS = Decimal("0.01")
+
 
 def _contar(db: Session, modelo: type, *condiciones: object) -> int:
     """Cuenta filas de `modelo` que cumplen todas las `condiciones`."""
     stmt = select(func.count()).select_from(modelo).where(*condiciones)
     return int(db.scalar(stmt) or 0)
+
+
+def _cuantizar(valor: Decimal | int) -> Decimal:
+    """Cuantiza un importe a 2 decimales con redondeo bancario."""
+    if isinstance(valor, int):
+        valor = Decimal(valor)
+    return valor.quantize(TWO_DECIMALS, rounding=ROUND_HALF_UP)
+
+
+def _neto_pagos(
+    db: Session,
+    inicio: datetime | None = None,
+    fin: datetime | None = None,
+) -> Decimal:
+    """Suma neta de pagos vigentes en el rango [inicio, fin).
+
+    Los pagos de tipo REEMBOLSO restan (son devoluciones). Un rango `None` no
+    restringe: suma todos los pagos vigentes de la historia.
+    """
+    consulta = select(Pago).where(Pago.anulado.is_(False))
+    if inicio is not None:
+        consulta = consulta.where(Pago.fecha_pago >= inicio)
+    if fin is not None:
+        consulta = consulta.where(Pago.fecha_pago < fin)
+    total = sum(
+        (pago.monto if pago.tipo != TipoPago.REEMBOLSO else -pago.monto)
+        for pago in db.scalars(consulta).all()
+    )
+    return _cuantizar(total)
 
 
 def _cuentas_con_saldo_pendiente(db: Session) -> int:
@@ -61,6 +93,10 @@ def resumen_dashboard(db: Session, hoy: date) -> DashboardRead:
       con `limites_utc_del_dia` para no confundir la fecha UTC con la local.
     - habitaciones_*: conteo por `EstadoHabitacion`.
     - cuentas_con_saldo_pendiente: reservas con cuenta vigente y saldo > 0.
+    - tasa_ocupacion: ocupadas sobre operativas (disponibles + ocupadas).
+    - ingresos_del_dia: pagos vigentes de hoy (reembolsos restados).
+    - revpar: ingresos_del_dia entre habitaciones operativas.
+    - balance_caja: pagos vigentes acumulados menos reembolsos acumulados.
     """
     inicio_dia_utc, fin_dia_utc = limites_utc_del_dia(hoy)
 
@@ -92,6 +128,15 @@ def resumen_dashboard(db: Session, hoy: date) -> DashboardRead:
         db, Habitacion, Habitacion.estado == EstadoHabitacion.MANTENIMIENTO
     )
 
+    operativas = disponibles + ocupadas
+    tasa_ocupacion = (
+        round(ocupadas / operativas * 100, 1) if operativas else 0.0
+    )
+
+    ingresos_del_dia = _neto_pagos(db, inicio_dia_utc, fin_dia_utc)
+    revpar = _cuantizar(ingresos_del_dia / operativas) if operativas else Decimal("0")
+    balance_caja = _neto_pagos(db)
+
     return DashboardRead(
         reservas_activas=reservas_activas,
         reservas_pendientes_check_in=pendientes_check_in,
@@ -101,4 +146,8 @@ def resumen_dashboard(db: Session, hoy: date) -> DashboardRead:
         habitaciones_ocupadas=ocupadas,
         habitaciones_en_mantenimiento=mantenimiento,
         cuentas_con_saldo_pendiente=_cuentas_con_saldo_pendiente(db),
+        tasa_ocupacion=tasa_ocupacion,
+        ingresos_del_dia=ingresos_del_dia,
+        revpar=revpar,
+        balance_caja=balance_caja,
     )

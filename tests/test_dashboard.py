@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from decimal import Decimal
 
 import pytest
 from conftest import TestingSessionLocal
@@ -6,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.core.tiempo import obtener_hoy
 from app.main import app
-from app.models import EstadoHabitacion, EstadoReserva
+from app.models import EstadoHabitacion, EstadoReserva, TipoPago
 from app.routers.dashboard import router
 from tests.factories import (
     crear_habitacion,
@@ -27,6 +28,10 @@ VACIO = {
     "habitacionesOcupadas": 0,
     "habitacionesEnMantenimiento": 0,
     "cuentasConSaldoPendiente": 0,
+    "tasaOcupacion": 0.0,
+    "ingresosDelDia": 0.0,
+    "revpar": 0.0,
+    "balanceCaja": 0.0,
 }
 
 
@@ -143,7 +148,68 @@ def test_dashboard_resumen_operativo(
         "habitacionesOcupadas": 1,  # la 401
         "habitacionesEnMantenimiento": 1,  # la 403
         "cuentasConSaldoPendiente": 3,  # pendiente, alojada y saliente de hoy
+        "tasaOcupacion": 50.0,  # 1 ocupada / 2 operativas
+        "ingresosDelDia": 0.0,  # los pagos del setup no son de hoy
+        "revpar": 0.0,  # 0 ingresos / 2 operativas
+        "balanceCaja": 900000.0,  # dos pagos vigentes de 450000 (confirmada y ayer)
     }
+
+
+def test_dashboard_metricas_financieras(
+    client: TestClient, admin_headers: dict[str, str], hoy_fijo
+) -> None:
+    """Valida ocupacion, ingresos del dia, revpar y balance de caja."""
+    db = TestingSessionLocal()
+    try:
+        usuario = crear_usuario(db, username="dash3", email="dash3@example.com")
+        huesped = crear_huesped(db, numero_documento="7003")
+        ocupada = crear_habitacion(db, numero=421, estado=EstadoHabitacion.OCUPADA)
+        crear_habitacion(db, numero=422)  # disponible
+        reserva = crear_reserva(
+            db,
+            huesped=huesped,
+            habitacion=ocupada,
+            usuario=usuario,
+            codigo="RES-2026-000421",
+            estado=EstadoReserva.CHECK_IN,
+        )
+        # Pago y reembolso de hoy.
+        crear_pago(
+            db,
+            reserva=reserva,
+            usuario=usuario,
+            monto=Decimal("300000.00"),
+            tipo=TipoPago.ABONO,
+            fecha_pago=datetime(2026, 10, 1, 10, 0, tzinfo=UTC),
+        )
+        crear_pago(
+            db,
+            reserva=reserva,
+            usuario=usuario,
+            monto=Decimal("100000.00"),
+            tipo=TipoPago.REEMBOLSO,
+            fecha_pago=datetime(2026, 10, 1, 11, 0, tzinfo=UTC),
+        )
+        # Pago de ayer: cuenta para balance de caja, no para ingresos del dia.
+        crear_pago(
+            db,
+            reserva=reserva,
+            usuario=usuario,
+            monto=Decimal("50000.00"),
+            tipo=TipoPago.ABONO,
+            fecha_pago=datetime(2026, 9, 30, 10, 0, tzinfo=UTC),
+        )
+    finally:
+        db.close()
+
+    response = client.get("/api/dashboard", headers=admin_headers)
+
+    assert response.status_code == 200
+    cuerpo = response.json()
+    assert cuerpo["tasaOcupacion"] == 50.0  # 1 ocupada / 2 operativas
+    assert cuerpo["ingresosDelDia"] == 200000.0  # 300000 - 100000 de hoy
+    assert cuerpo["revpar"] == 100000.0  # 200000 / 2 operativas
+    assert cuerpo["balanceCaja"] == 250000.0  # 300000 - 100000 + 50000
 
 
 def test_dashboard_check_outs_del_dia_respetan_la_zona_horaria(
