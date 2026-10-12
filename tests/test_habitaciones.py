@@ -682,3 +682,137 @@ def test_maximo_imagenes_devuelve_409(
 
     assert respuesta.status_code == 409
     assert respuesta.json()["code"] == "MAXIMO_IMAGENES"
+
+
+# --- Cobertura de ramas (formatos, 404 y limpieza de archivos) ------------------
+
+
+def test_subir_imagen_jpeg_valida(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 910)
+
+    imagen = _subir_imagen(
+        client,
+        admin_headers,
+        habitacion_id,
+        "foto.jpg",
+        contenido=b"\xff\xd8\xff" + b"jpeg",
+    )
+
+    assert imagen["url"].endswith(".jpg")
+
+
+def test_subir_imagen_webp_valida(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 911)
+    contenido = b"RIFF\x00\x00\x00\x00WEBP" + b"webp-data"
+
+    imagen = _subir_imagen(
+        client,
+        admin_headers,
+        habitacion_id,
+        "foto.webp",
+        contenido=contenido,
+    )
+
+    assert imagen["url"].endswith(".webp")
+
+
+def test_subir_imagen_habitacion_inexistente_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    respuesta = client.post(
+        "/api/habitaciones/9999/imagenes",
+        files={"archivo": ("foto.png", FIRMA_PNG, "image/png")},
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 404
+
+
+def test_eliminar_imagen_inexistente_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 912)
+
+    respuesta = client.delete(
+        f"/api/habitaciones/{habitacion_id}/imagenes/9999",
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 404
+
+
+def test_marcar_principal_habitacion_inexistente_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    respuesta = client.patch(
+        "/api/habitaciones/9999/imagenes/1/principal",
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 404
+
+
+def test_marcar_principal_imagen_inexistente_404(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 913)
+
+    respuesta = client.patch(
+        f"/api/habitaciones/{habitacion_id}/imagenes/9999/principal",
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 404
+
+
+def test_actualizar_habitacion_numero_duplicado_409(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    client.post(
+        "/api/habitaciones", json=habitacion_payload(920), headers=admin_headers
+    )
+    otra = client.post(
+        "/api/habitaciones", json=habitacion_payload(921), headers=admin_headers
+    ).json()
+
+    respuesta = client.put(
+        f"/api/habitaciones/{otra['id']}",
+        json=habitacion_payload(920),
+        headers=admin_headers,
+    )
+
+    assert respuesta.status_code == 409
+
+
+def test_eliminar_habitacion_con_imagenes_limpia_archivos(
+    client: TestClient,
+    admin_headers: dict[str, str],
+    media_dir,
+) -> None:
+    habitacion_id = _crear_habitacion(client, admin_headers, 922)
+    imagen = _subir_imagen(client, admin_headers, habitacion_id, "foto.png")
+    archivo = media_dir / imagen["url"].split("/")[-1]
+    assert archivo.exists()
+
+    respuesta = client.delete(
+        f"/api/habitaciones/{habitacion_id}", headers=admin_headers
+    )
+
+    assert respuesta.status_code == 204
+    assert not archivo.exists()
