@@ -57,26 +57,31 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(gradient: _degradado()),
-        child: esEscritorio
-            ? Row(
-                children: [
-                  const Expanded(child: _PanelMarca()),
-                  Expanded(
-                    child: Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: SingleChildScrollView(child: tarjeta),
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: tarjeta,
-                ),
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1100),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+              child: esEscritorio
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Expanded(child: _PanelMarca()),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 40),
+                          child: _DivisorDorado(),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: SingleChildScrollView(child: tarjeta),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Center(child: SingleChildScrollView(child: tarjeta)),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -256,7 +261,6 @@ class _Caracteristica extends StatelessWidget {
 
   final IconData icono;
   final String texto;
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -271,6 +275,30 @@ class _Caracteristica extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Divisor vertical dorado entre el panel de marca y el formulario.
+class _DivisorDorado extends StatelessWidget {
+  const _DivisorDorado();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 2,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(2),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppTheme.oro.withValues(alpha: 0.15),
+            AppTheme.oro,
+            AppTheme.oro.withValues(alpha: 0.15),
+          ],
+        ),
+      ),
     );
   }
 }
