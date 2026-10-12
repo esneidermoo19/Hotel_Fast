@@ -7,6 +7,7 @@ tablas ni campos nuevos: todo sale de lo que el dominio ya guarda.
 
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -27,7 +28,7 @@ PENDIENTES_DE_CHECK_IN: tuple[EstadoReserva, ...] = (
 TWO_DECIMALS = Decimal("0.01")
 
 
-def _contar(db: Session, modelo: type, *condiciones: object) -> int:
+def _contar(db: Session, modelo: type, *condiciones: Any) -> int:
     """Cuenta filas de `modelo` que cumplen todas las `condiciones`."""
     stmt = select(func.count()).select_from(modelo).where(*condiciones)
     return int(db.scalar(stmt) or 0)

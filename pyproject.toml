@@ -5,3 +5,31 @@ extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+
+# Los routers anotan el schema de respuesta pero devuelven el modelo ORM;
+# FastAPI serializa con `response_model`, asi que ese patron es correcto.
+[[tool.mypy.overrides]]
+module = "app.routers.*"
+disable_error_code = ["return-value"]
+
+# `@computed_field` sobre `@property` es el patron de Pydantic v2; mypy aun no
+# lo soporta y reporta prop-decorator.
+[[tool.mypy.overrides]]
+module = "app.schemas.*"
+disable_error_code = ["prop-decorator"]
+
+# Los modelos Pago y Consumo todavia no tienen columnas anulado_por/anulado_en
+# (ni Consumo.motivo_anulacion); los servicios las asignan igual. Pendiente de
+# una migracion que agregue esas columnas.
+[[tool.mypy.overrides]]
+module = "app.services.pago_service"
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "app.services.consumo_service"
+disable_error_code = ["attr-defined"]
