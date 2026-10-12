@@ -1,7 +1,10 @@
+import os
+from os import PathLike
 from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.routing import APIRoute
@@ -10,6 +13,8 @@ from pydantic.alias_generators import to_camel
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from starlette.responses import Response
+from starlette.types import Scope
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -78,6 +83,8 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+# Comprime las respuestas (JSON) para acelerar la carga en el cliente.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 registrar_limiter(app)
 registrar_manejadores(app)
 app.include_router(auth.router)
@@ -93,9 +100,28 @@ app.include_router(cuentas.router)
 app.include_router(horarios.router)
 app.include_router(reportes.router)
 app.include_router(dashboard.router)
+class _MediaEstatica(StaticFiles):
+    """Sirve /media con cache larga.
+
+    Los archivos tienen nombre unico e inmutable, asi que el navegador puede
+    cachearlos por mucho tiempo sin revalidar (fluidez al reabrir).
+    """
+
+    def file_response(
+        self,
+        full_path: str | PathLike[str],
+        stat_result: os.stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+
 app.mount(
     settings.media_url_prefix,
-    StaticFiles(directory=settings.media_dir, check_dir=False),
+    _MediaEstatica(directory=settings.media_dir, check_dir=False),
     name="media",
 )
 

@@ -79,30 +79,51 @@ def _huesped(nombres, apellidos, numero_documento, tipo) -> Huesped:
     )
 
 
+def _imagenes_del_tipo(tipo: str) -> list[Path]:
+    """Imagenes de ejemplo del tipo, ordenadas (p. ej. doble-1, doble-2)."""
+    encontradas: list[Path] = []
+    for extension in EXTENSIONES_IMAGEN:
+        encontradas.extend(sorted(SEED_IMAGENES_DIR.glob(f"{tipo}-*.{extension}")))
+    return encontradas
+
+
 def _asignar_imagenes(db, habitaciones) -> None:
     """Copia imagenes de ejemplo a MEDIA_DIR y las asocia a cada habitacion.
 
-    Busca, por tipo de habitacion, un archivo `{tipo}.{ext}` en app/static/seed.
-    Si no existe, deja la habitacion sin imagenes.
+    Busca, por tipo de habitacion, los archivos `{tipo}-*.{ext}` en
+    app/static/seed y los asigna todos (el primero queda como principal). Si no
+    hay imagenes del tipo, la habitacion queda sin imagenes.
     """
     directorio_media = Path(settings.media_dir)
     directorio_media.mkdir(parents=True, exist_ok=True)
     for habitacion in habitaciones:
         tipo = habitacion.tipo.value.lower()
-        for extension in EXTENSIONES_IMAGEN:
-            origen = SEED_IMAGENES_DIR / f"{tipo}.{extension}"
-            if origen.is_file():
-                nombre = f"{uuid4().hex}.{extension}"
-                shutil.copyfile(origen, directorio_media / nombre)
-                db.add(
-                    HabitacionImagen(
-                        habitacion_id=habitacion.id,
-                        ruta=nombre,
-                        orden=1,
-                        es_principal=True,
-                    )
+        for orden, origen in enumerate(_imagenes_del_tipo(tipo), start=1):
+            nombre = f"{uuid4().hex}{origen.suffix}"
+            shutil.copyfile(origen, directorio_media / nombre)
+            db.add(
+                HabitacionImagen(
+                    habitacion_id=habitacion.id,
+                    ruta=nombre,
+                    orden=orden,
+                    es_principal=(orden == 1),
                 )
-                break
+            )
+
+
+def _asignar_imagenes_faltantes(db) -> None:
+    """Asigna imagenes de ejemplo a las habitaciones que aun no tienen ninguna.
+
+    Sirve para bases ya pobladas (idempotente: solo toca las que estan sin foto).
+    """
+    habitaciones = list(db.scalars(select(Habitacion).order_by(Habitacion.numero)))
+    pendientes = [h for h in habitaciones if not h.imagenes]
+    if not pendientes:
+        print("Ya hay datos e imagenes; no se inserta nada.")
+        return
+    _asignar_imagenes(db, pendientes)
+    db.commit()
+    print(f"Imagenes de ejemplo asignadas a {len(pendientes)} habitaciones.")
 
 
 def generar_datos() -> None:
@@ -110,7 +131,7 @@ def generar_datos() -> None:
     try:
         total = db.scalar(select(func.count()).select_from(Habitacion)) or 0
         if total > 0:
-            print("Ya hay datos; no se inserta nada (script idempotente).")
+            _asignar_imagenes_faltantes(db)
             return
 
         usuario = db.scalars(
