@@ -44,5 +44,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Firma de release de Android (NUNCA subir al repo)
+android/key.properties
+**/*.jks
+**/*.keystore
+
 # Widget Preview related
 .widget_preview/
