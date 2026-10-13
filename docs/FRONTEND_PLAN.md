@@ -420,3 +420,35 @@ activo: todo con `MockClient` y `SharedPreferences` en memoria.
   symlinks de plugins en Windows) y el registro del origen real en `CORS_ORIGINS`
   para produccion.
 - Evaluar almacenamiento seguro de tokens en Web antes de produccion.
+
+---
+
+## Fase 9 - Endurecimiento de seguridad (COMPLETADA)
+
+**Objetivo**: cerrar vectores de ataque del frontend sin tocar la logica de
+negocio ni los contratos de la API.
+
+Entregado:
+
+- **Cabeceras en Nginx** (`hotel_front/security-headers.conf`):
+  Content-Security-Policy compatible con Flutter Web (CanvasKit desde
+  `https://www.gstatic.com`, `wasm-unsafe-eval`, workers desde `blob:`),
+  Strict-Transport-Security (HSTS, un ano) y las cabeceras ya presentes
+  (nosniff, X-Frame-Options, Referrer-Policy, Permissions-Policy).
+- **Meta referrer** en `web/index.html` como defensa en profundidad.
+- **HTTPS obligatorio en release** (`lib/config/app_config.dart`): la URL base
+  debe ser HTTPS salvo que se compile con
+  `--dart-define=ALLOW_INSECURE_HTTP=true` (solo pruebas locales). En debug y
+  tests se sigue admitiendo HTTP local.
+
+**Validaciones ejecutadas**:
+- `dart format lib/config/app_config.dart test/config/app_config_test.dart` -> OK.
+- `flutter analyze` -> **No issues found!**
+- `flutter test` -> **178/178 passed**.
+
+**Pendiente**:
+- Validar la CSP contra el build real en un navegador (carga de CanvasKit desde
+  gstatic) antes de produccion; si el API cambia de dominio, ajustar
+  `connect-src` e `img-src`.
+- Evaluar `flutter_secure_storage` en movil/escritorio para los tokens (en Web
+  el respaldo sigue siendo `localStorage`, riesgo ya documentado).

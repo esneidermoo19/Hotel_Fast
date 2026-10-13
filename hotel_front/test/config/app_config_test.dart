@@ -31,6 +31,22 @@ void main() {
       );
     });
 
+    test('rechaza http cuando no se permite (release)', () {
+      expect(
+        () => AppConfig(baseUrl: 'http://localhost:8000', permitirHttp: false),
+        throwsArgumentError,
+      );
+    });
+
+    test('admite https aunque no se permita http (release)', () {
+      final config = AppConfig(
+        baseUrl: 'https://api.hotel.example.com',
+        permitirHttp: false,
+      );
+
+      expect(config.baseUrl, 'https://api.hotel.example.com');
+    });
+
     test('resolve construye la URL con query y omite valores nulos', () {
       final config = AppConfig(baseUrl: 'http://localhost:8000');
 
