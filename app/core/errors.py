@@ -119,3 +119,24 @@ class MaximoImagenesError(ConflictoError):
 class DemasiadasSolicitudesError(AppError):
     codigo = "DEMASIADAS_SOLICITUDES"
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
+
+
+class CuerpoMuyGrandeError(AppError):
+    codigo = "CUERPO_MUY_GRANDE"
+    status_code = 413
+
+    def __init__(self, detail: str = "El cuerpo de la solicitud es demasiado grande") -> None:
+        super().__init__(detail)
+
+
+class CuentaBloqueadaError(AppError):
+    codigo = "CUENTA_BLOQUEADA"
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+
+    def __init__(
+        self,
+        detail: str = "Demasiados intentos fallidos; intente de nuevo mas tarde",
+        *,
+        retry_after: int = 900,
+    ) -> None:
+        super().__init__(detail, headers={"Retry-After": str(retry_after)})

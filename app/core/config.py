@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = DEFAULT_CORS_ORIGINS
     cors_origin_regex: str | None = None
     login_rate_limit_per_minute: int = 5
+    global_rate_limit_per_minute: int = 300
+    login_max_attempts: int = 10
+    login_lockout_minutes: int = 15
+    login_lockout_enabled: bool = True
+    max_request_body_bytes: int = 6 * 1024 * 1024
     rate_limit_enabled: bool = True
     media_dir: str = "./media"
     media_url_prefix: str = "/media"

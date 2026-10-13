@@ -7,6 +7,7 @@ desactivarse por completo con `RATE_LIMIT_ENABLED`.
 
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -14,7 +15,10 @@ from starlette.responses import JSONResponse
 from app.core.config import settings
 from app.core.errors import DemasiadasSolicitudesError
 
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[f"{settings.global_rate_limit_per_minute}/minute"],
+)
 
 
 def limite_login() -> str:
@@ -41,3 +45,5 @@ def registrar_limiter(app) -> None:  # type: ignore[no-untyped-def]
 
     limiter.enabled = settings.rate_limit_enabled
     app.state.limiter = limiter
+    # Aplica el limite global por IP a las rutas sin decorador propio.
+    app.add_middleware(SlowAPIMiddleware)

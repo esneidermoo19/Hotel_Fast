@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 # deben depender del .env de la maquina). Se fija antes de importar la app.
 os.environ.setdefault("ENVIRONMENT", "test")
 
+from app.core import lockout  # noqa: E402
 from app.core.database import Base, get_db  # noqa: E402
 from app.core.limiter import limiter  # noqa: E402
 from app.core.security import create_access_token, hash_password  # noqa: E402
@@ -44,8 +45,11 @@ def isolate_database() -> Generator[None, None, None]:
     app.dependency_overrides[get_db] = override_get_db
     # El limite de intentos se prueba explicitamente, no en cada test.
     limiter.enabled = False
+    lockout.reiniciar()
+    limiter.reset()
     yield
     limiter.enabled = True
+    lockout.reiniciar()
     app.dependency_overrides.clear()
     Base.metadata.drop_all(bind=test_engine)
 
