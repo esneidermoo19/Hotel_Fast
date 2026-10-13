@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.exception_handlers import registrar_manejadores
 from app.core.limiter import registrar_limiter
+from app.core.seguridad_http import registrar_seguridad_http
 from app.routers import (
     auditoria,
     auth,
@@ -62,7 +63,7 @@ app = FastAPI(
     title="Hotel Fast - API de gestion hotelera",
     description="API para la administracion integral de las operaciones del hotel.",
     version="1.0.0",
-    openapi_url="/openapi.json",
+    openapi_url=None if settings.is_production else "/openapi.json",
     docs_url=None,
     redoc_url=None if settings.is_production else "/redoc",
     openapi_tags=openapi_tags,
@@ -74,18 +75,22 @@ app = FastAPI(
         }
     },
 )
+# El orden importa: CORS se agrega AL FINAL para quedar como middleware mas
+# externo entre los de la app, de modo que tambien cubra las respuestas que
+# generan los demas middlewares (413 de tamano y 429 de limite global).
+registrar_limiter(app)
+registrar_seguridad_http(app)
+# Comprime las respuestas (JSON) para acelerar la carga en el cliente.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_origin_regex=settings.resolved_cors_origin_regex,
     allow_credentials=settings.cors_allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type"],
+    expose_headers=["Retry-After", "WWW-Authenticate"],
 )
-# Comprime las respuestas (JSON) para acelerar la carga en el cliente.
-app.add_middleware(GZipMiddleware, minimum_size=500)
-registrar_limiter(app)
 registrar_manejadores(app)
 app.include_router(auth.router)
 app.include_router(habitaciones.router)
@@ -126,14 +131,26 @@ app.mount(
 )
 
 
-@app.get("/docs", include_in_schema=False)
-async def custom_swagger_ui_html() -> HTMLResponse:
-    return get_swagger_ui_html(
-        openapi_url=app.openapi_url or "/openapi.json",
-        title=f"{app.title} - Swagger UI",
-        swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
-        swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
-    )
+def _montar_documentacion() -> None:
+    """Expone Swagger UI solo fuera de produccion.
+
+    En produccion la API no publica ni el esquema OpenAPI ni la UI, para no
+    revelar la superficie de endpoints a un atacante.
+    """
+    if settings.is_production:
+        return
+
+    @app.get("/docs", include_in_schema=False)
+    async def custom_swagger_ui_html() -> HTMLResponse:
+        return get_swagger_ui_html(
+            openapi_url=app.openapi_url or "/openapi.json",
+            title=f"{app.title} - Swagger UI",
+            swagger_js_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js",
+            swagger_css_url="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css",
+        )
+
+
+_montar_documentacion()
 
 
 @app.get(

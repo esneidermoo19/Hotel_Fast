@@ -20,7 +20,7 @@ class LoginRequest(CamelCaseSchema):
 
 class CambiarPasswordRequest(CamelCaseSchema):
     password_actual: str = Field(min_length=1)
-    password_nuevo: str = Field(min_length=8, max_length=128)
+    password_nuevo: str = Field(min_length=12, max_length=128)
 
     model_config = ConfigDict(extra="ignore")
 

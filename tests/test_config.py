@@ -112,6 +112,16 @@ def test_produccion_rechaza_clave_corta() -> None:
         )
 
 
+def test_limites_de_seguridad_por_defecto() -> None:
+    config = Settings(_env_file=None, environment="test")
+
+    assert config.global_rate_limit_per_minute == 300
+    assert config.login_max_attempts == 10
+    assert config.login_lockout_minutes == 15
+    assert config.login_lockout_enabled is True
+    assert config.max_request_body_bytes == 6 * 1024 * 1024
+
+
 def test_resolved_database_url_usa_sqlite_por_defecto() -> None:
     configurado = Settings(environment="development", database_url=None)
 

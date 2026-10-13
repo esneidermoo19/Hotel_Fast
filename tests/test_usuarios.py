@@ -233,6 +233,20 @@ def test_password_debil_devuelve_422_con_detalle_por_campo(
     assert response.json()["errors"][0]["campo"] == "password"
 
 
+def test_password_menor_a_doce_caracteres_devuelve_422(
+    client: TestClient,
+    admin_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/api/usuarios",
+        json=payload_usuario(password="clave12"),
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["campo"] == "password"
+
+
 def test_password_sin_numero_devuelve_422(
     client: TestClient,
     admin_headers: dict[str, str],

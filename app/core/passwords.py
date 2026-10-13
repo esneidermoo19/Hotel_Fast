@@ -6,7 +6,7 @@ el detalle por campo) como los servicios (que lanzan error de dominio).
 
 import re
 
-LONGITUD_MINIMA = 8
+LONGITUD_MINIMA = 12
 LONGITUD_MAXIMA = 128
 
 
