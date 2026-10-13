@@ -40,6 +40,9 @@ COPY --from=build /app/build/web /usr/share/nginx/html
 # Copiar configuración personalizada de Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Rate limiting por IP (a nivel http; se carga antes de default.conf)
+COPY 00-limits.conf /etc/nginx/conf.d/00-limits.conf
+
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
