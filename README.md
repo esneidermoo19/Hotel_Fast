@@ -35,6 +35,18 @@ El seed copia las imágenes de `app/seed_assets/imagenes` a `MEDIA_DIR` y crea
 sus registros en `habitacion_imagenes`. Es idempotente: se puede ejecutar en
 cada despliegue sin duplicar filas ni archivos.
 
+### Recuperar o cambiar una contraseña
+
+No existe recuperación por correo. Si olvidaste la contraseña, restablécela
+desde la raíz (la nueva contraseña se pide de forma interactiva y no se imprime):
+
+```powershell
+python -m app.reset_password --usuario adminhhf36
+```
+
+Acepta `--usuario` como username o email. Al cambiarla se revocan todas las
+sesiones del usuario; si la cuenta está inactiva, agrega `--activar`.
+
 Inicia la API:
 
 ```powershell
