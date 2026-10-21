@@ -1,0 +1,29 @@
+name: Web
+
+on:
+  push:
+    branches: ["*"]
+    paths:
+      - "hotel_web/**"
+  pull_request:
+    paths:
+      - "hotel_web/**"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel_web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: hotel_web/.nvmrc
+          cache: "npm"
+          cache-dependency-path: hotel_web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
