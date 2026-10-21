@@ -1,11 +1,31 @@
+import logging
+import shutil
+from pathlib import Path
+
 from pydantic import EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import SessionLocal
 from app.core.security import hash_password
-from app.models import RolUsuario, Usuario
+from app.models import Habitacion, HabitacionImagen, RolUsuario, Usuario
+
+logger = logging.getLogger(__name__)
+
+DIRECTORIO_IMAGENES = Path(__file__).resolve().parent / "seed_assets" / "imagenes"
+
+MAPEO_IMAGENES: dict[int, tuple[str, ...]] = {
+    101: ("101-1.jpg",),
+    102: ("102-1.jpg",),
+    201: ("201-1.jpg", "201-2.jpg"),
+    202: ("202-1.jpg", "202-2.jpg"),
+    301: ("301-1.jpg",),
+    302: ("302-1.jpg",),
+    401: ("401-1.jpg",),
+    402: ("402-1.jpg",),
+}
 
 
 class SeedSettings(BaseSettings):
@@ -62,6 +82,71 @@ def _ensure_user(
     return usuario
 
 
+def _copiar_si_falta(directorio_media: Path, nombre: str) -> bool:
+    origen = DIRECTORIO_IMAGENES / nombre
+    if not origen.is_file():
+        logger.warning("No existe la imagen de seed %s", origen)
+        return False
+
+    destino = directorio_media / nombre
+    if not destino.exists():
+        shutil.copy2(origen, destino)
+    return True
+
+
+def sembrar_imagenes(db: Session) -> int:
+    """Copia las imagenes de ejemplo y crea sus registros.
+
+    Solo actua sobre habitaciones existentes que aun no tienen imagenes. Si una
+    habitacion ya tiene filas, solo repone los archivos que falten. Devuelve
+    cuantas imagenes se crearon.
+    """
+    if not DIRECTORIO_IMAGENES.is_dir():
+        return 0
+
+    directorio_media = Path(settings.media_dir)
+    directorio_media.mkdir(parents=True, exist_ok=True)
+    creadas = 0
+
+    try:
+        for numero, nombres in MAPEO_IMAGENES.items():
+            habitacion = db.scalar(
+                select(Habitacion).where(Habitacion.numero == numero)
+            )
+            if habitacion is None:
+                continue
+
+            existentes = db.scalars(
+                select(HabitacionImagen).where(
+                    HabitacionImagen.habitacion_id == habitacion.id
+                )
+            ).all()
+            if existentes:
+                for imagen in existentes:
+                    _copiar_si_falta(directorio_media, imagen.ruta)
+                continue
+
+            for orden, nombre in enumerate(nombres, start=1):
+                if not _copiar_si_falta(directorio_media, nombre):
+                    continue
+                db.add(
+                    HabitacionImagen(
+                        habitacion_id=habitacion.id,
+                        ruta=nombre,
+                        orden=orden,
+                        es_principal=orden == 1,
+                    )
+                )
+                creadas += 1
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return creadas
+
+
 def main() -> None:
     seed_settings = SeedSettings()
     db = SessionLocal()
@@ -83,6 +168,9 @@ def main() -> None:
             role=RolUsuario.RECEPCION,
         )
         db.commit()
+        imagenes = sembrar_imagenes(db)
+        if imagenes:
+            print(f"Imagenes de ejemplo sembradas: {imagenes}")
     except Exception:
         db.rollback()
         raise

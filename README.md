@@ -24,11 +24,16 @@ Inicializa la base de datos de desarrollo:
 python -m app.dev_db
 ```
 
-Si las variables de seed están definidas en `.env`, carga los usuarios iniciales:
+Si las variables de seed están definidas en `.env`, carga los usuarios iniciales
+y las imágenes demo de las habitaciones (solo si aún no tienen imágenes):
 
 ```powershell
 python -m app.seed
 ```
+
+El seed copia las imágenes de `app/seed_assets/imagenes` a `MEDIA_DIR` y crea
+sus registros en `habitacion_imagenes`. Es idempotente: se puede ejecutar en
+cada despliegue sin duplicar filas ni archivos.
 
 Inicia la API:
 
