@@ -3,7 +3,8 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.core.config import Settings
+from app.main import app, documentacion_habilitada
 
 
 def test_operaciones_openapi_tienen_summary_tags_y_operation_id_unicos() -> None:
@@ -91,6 +92,46 @@ def test_cors_permite_puertos_locales_en_desarrollo(
 
     assert permitido.headers["access-control-allow-origin"] == "http://localhost:54321"
     assert "access-control-allow-origin" not in externo.headers
+
+
+def test_documentacion_solo_se_publica_con_docs_enabled_en_produccion() -> None:
+    desarrollo = Settings(_env_file=None, environment="development")
+    produccion = Settings(
+        _env_file=None,
+        environment="production",
+        secret_key="clave-segura-de-pruebas-con-longitud-1234",
+        database_url="postgresql+psycopg://u:p@h:5432/db",
+    )
+    produccion_con_docs = Settings(
+        _env_file=None,
+        environment="production",
+        secret_key="clave-segura-de-pruebas-con-longitud-1234",
+        database_url="postgresql+psycopg://u:p@h:5432/db",
+        docs_enabled=True,
+    )
+
+    assert documentacion_habilitada(desarrollo) is True
+    assert documentacion_habilitada(produccion) is False
+    assert documentacion_habilitada(produccion_con_docs) is True
+
+
+def test_raiz_responde_info_del_servicio(client: TestClient) -> None:
+    respuesta = client.get("/")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json() == {
+        "nombre": "Hotel Fast - API de gestion hotelera",
+        "version": "1.0.0",
+        "estado": "ok",
+        "salud": "/api/health",
+        "documentacion": "/docs",
+    }
+
+
+def test_documentacion_disponible_fuera_de_produccion(client: TestClient) -> None:
+    assert client.get("/docs").status_code == 200
+    assert client.get("/redoc").status_code == 200
+    assert client.get("/openapi.json").status_code == 200
 
 
 def test_parametro_solo_activos_usa_camel_case_en_openapi() -> None:

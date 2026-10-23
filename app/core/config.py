@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     login_lockout_enabled: bool = True
     max_request_body_bytes: int = 6 * 1024 * 1024
     rate_limit_enabled: bool = True
+    docs_enabled: bool = False
     media_dir: str = "./media"
     media_url_prefix: str = "/media"
 

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from starlette.responses import Response
 from starlette.types import Scope
 
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.database import get_db
 from app.core.exception_handlers import registrar_manejadores
 from app.core.limiter import registrar_limiter
@@ -59,13 +59,21 @@ def generar_operation_id(route: APIRoute) -> str:
     return to_camel(route.name)
 
 
+def documentacion_habilitada(config: Settings = settings) -> bool:
+    """Publica Swagger, ReDoc y OpenAPI en produccion solo con DOCS_ENABLED=true."""
+    return not config.is_production or config.docs_enabled
+
+
+DOCUMENTACION_HABILITADA = documentacion_habilitada()
+
+
 app = FastAPI(
     title="Hotel Fast - API de gestion hotelera",
     description="API para la administracion integral de las operaciones del hotel.",
     version="1.0.0",
-    openapi_url=None if settings.is_production else "/openapi.json",
+    openapi_url="/openapi.json" if DOCUMENTACION_HABILITADA else None,
     docs_url=None,
-    redoc_url=None if settings.is_production else "/redoc",
+    redoc_url="/redoc" if DOCUMENTACION_HABILITADA else None,
     openapi_tags=openapi_tags,
     swagger_ui_parameters={"persistAuthorization": True},
     generate_unique_id_function=generar_operation_id,
@@ -132,12 +140,12 @@ app.mount(
 
 
 def _montar_documentacion() -> None:
-    """Expone Swagger UI solo fuera de produccion.
+    """Expone Swagger UI fuera de produccion o con DOCS_ENABLED=true.
 
-    En produccion la API no publica ni el esquema OpenAPI ni la UI, para no
-    revelar la superficie de endpoints a un atacante.
+    En produccion la API no publica ni el esquema OpenAPI ni la UI por defecto,
+    para no revelar la superficie de endpoints a un atacante.
     """
-    if settings.is_production:
+    if not DOCUMENTACION_HABILITADA:
         return
 
     @app.get("/docs", include_in_schema=False)
@@ -151,6 +159,26 @@ def _montar_documentacion() -> None:
 
 
 _montar_documentacion()
+
+
+@app.get(
+    "/",
+    response_model=None,
+    tags=["health"],
+    summary="Consultar informacion del servicio",
+    description=(
+        "Devuelve el nombre, la version y las rutas utiles para consumir la API."
+    ),
+    responses={200: {"description": "Informacion del servicio"}},
+)
+def info_servicio() -> dict[str, str | None]:
+    return {
+        "nombre": app.title,
+        "version": app.version,
+        "estado": "ok",
+        "salud": "/api/health",
+        "documentacion": "/docs" if DOCUMENTACION_HABILITADA else None,
+    }
 
 
 @app.get(
