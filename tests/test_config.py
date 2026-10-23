@@ -122,6 +122,10 @@ def test_limites_de_seguridad_por_defecto() -> None:
     assert config.max_request_body_bytes == 6 * 1024 * 1024
 
 
+def test_docs_enabled_desactivado_por_defecto() -> None:
+    assert Settings(_env_file=None, environment="test").docs_enabled is False
+
+
 def test_resolved_database_url_usa_sqlite_por_defecto() -> None:
     configurado = Settings(environment="development", database_url=None)
 
