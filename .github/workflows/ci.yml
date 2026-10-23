@@ -122,6 +122,6 @@ jobs:
       - name: Analizar seguridad del codigo
         run: bandit -r app -ll
       - name: Escanear secretos (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
