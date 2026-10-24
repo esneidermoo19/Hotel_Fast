@@ -1,10 +1,3 @@
-import {
-  BedDouble,
-  CalendarDays,
-  ScrollText,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
 import { Navigate, Route, Routes } from "react-router";
 
 import { AppShell } from "@/components/layout/AppShell";
@@ -14,7 +7,11 @@ import {
   RutaPublica,
 } from "@/components/layout/RouteGuards";
 import { LoginPage } from "@/features/auth/LoginPage";
-import { ModuloPendientePage } from "@/pages/ModuloPendientePage";
+import { AuditoriaPage } from "@/features/auditoria/AuditoriaPage";
+import { HabitacionesPage } from "@/features/habitaciones/HabitacionesPage";
+import { HuespedesPage } from "@/features/huespedes/HuespedesPage";
+import { ReservasPage } from "@/features/reservas/ReservasPage";
+import { UsuariosPage } from "@/features/usuarios/UsuariosPage";
 import { PanelPage } from "@/pages/PanelPage";
 
 export default function App() {
@@ -23,66 +20,18 @@ export default function App() {
       <Route element={<RutaPublica />}>
         <Route path="/login" element={<LoginPage />} />
       </Route>
-
       <Route element={<RutaProtegida />}>
         <Route element={<AppShell />}>
           <Route index element={<PanelPage />} />
-          <Route
-            path="habitaciones"
-            element={
-              <ModuloPendientePage
-                titulo="Habitaciones"
-                descripcion="Consulta y administracion del inventario de habitaciones."
-                icono={BedDouble}
-              />
-            }
-          />
-          <Route
-            path="huespedes"
-            element={
-              <ModuloPendientePage
-                titulo="Huespedes"
-                descripcion="Registro y consulta de los huespedes del hotel."
-                icono={Users}
-              />
-            }
-          />
-          <Route
-            path="reservas"
-            element={
-              <ModuloPendientePage
-                titulo="Reservas"
-                descripcion="Gestion de reservas, llegadas y salidas."
-                icono={CalendarDays}
-              />
-            }
-          />
-
+          <Route path="habitaciones" element={<HabitacionesPage />} />
+          <Route path="huespedes" element={<HuespedesPage />} />
+          <Route path="reservas" element={<ReservasPage />} />
           <Route element={<RutaConRoles roles={["ADMIN"]} />}>
-            <Route
-              path="usuarios"
-              element={
-                <ModuloPendientePage
-                  titulo="Usuarios"
-                  descripcion="Administracion de cuentas y roles del personal."
-                  icono={ShieldCheck}
-                />
-              }
-            />
-            <Route
-              path="auditoria"
-              element={
-                <ModuloPendientePage
-                  titulo="Auditoria"
-                  descripcion="Consulta del historial de acciones del sistema."
-                  icono={ScrollText}
-                />
-              }
-            />
+            <Route path="usuarios" element={<UsuariosPage />} />
+            <Route path="auditoria" element={<AuditoriaPage />} />
           </Route>
         </Route>
       </Route>
-
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
